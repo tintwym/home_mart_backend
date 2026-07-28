@@ -1,0 +1,17 @@
+target/
+.m2/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+.env
+*.log
+.DS_Store
+storage/
+!src/main/resources/static/storage/
+!src/main/resources/static/storage/listings/
+.port_ref/
+*.class
+.mvn/wrapper/maven-wrapper.jar

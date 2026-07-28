@@ -1,0 +1,27 @@
+# Local smoke test of the same Dockerfile Render will use.
+# Usage:
+#   docker compose up --build
+# API: http://localhost:5199/api/health
+#
+# Loads secrets from ./.env (FIREBASE_PROJECT_ID, etc.).
+# Uses existing Postgres on the host (homemart-pg published on :5432).
+
+services:
+  api:
+    build: .
+    image: homemart-api:local
+    container_name: homemart-api
+    ports:
+      - "5199:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    environment:
+      # Docker-specific overrides (win over env_file)
+      PORT: "8080"
+      DATABASE_URL: postgresql://homemart:homemart@host.docker.internal:5432/homemart?sslmode=prefer
+      App_Url: http://localhost:5199
+      App_FrontendUrl: http://localhost:3000
+      Cors_AllowedOrigins: http://localhost:3000
+      Seed_OnStartup: "false"
