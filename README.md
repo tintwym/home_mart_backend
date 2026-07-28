@@ -50,16 +50,36 @@ Uses `Dockerfile` + `DATABASE_URL` via `host.docker.internal`. For Neon, set `DA
 
 ## Render deploy
 
-1. New **Web Service**, Dockerfile path: `home_mart_backend/Dockerfile`
-2. Set environment variables from `.env.example`
-3. Important ones for the SPA split:
+This repo includes a Blueprint: [`render.yaml`](./render.yaml) (Docker web service + free Postgres).
+
+### One-click Blueprint
+
+1. Push this repo to GitHub (already: `tintwym/home_mart_backend`).
+2. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → select this repo.
+3. When prompted (`sync: false` vars), set at least:
+   - **`App_Url`** — `https://homemart-api.onrender.com` (use the exact hostname Render assigns)
+   - **`App_FrontendUrl`** — your Vercel URL, e.g. `https://homemart-mm.vercel.app`
+   - **`Cors_AllowedOrigins`** — same as the frontend origin (or `*` for a quick test)
+   - **`FIREBASE_PROJECT_ID`** — e.g. `home-mart-23a2a`
+   - Optional Stripe / Cloudinary / Resend / `FIREBASE_CREDENTIALS_JSON` — leave empty if unused
+4. Deploy. Health check: `GET /api/health`
+5. In the frontend repo, replace `YOUR-RENDER-SERVICE.onrender.com` in `vercel.json` with this service host.
+
+`JWT_KEY` is auto-generated. `DATABASE_URL` comes from the Blueprint Postgres (`homemart-db`). To use **Neon** instead, delete/unlink the Render DB and set `DATABASE_URL` manually in the service env.
+
+### Manual (without Blueprint)
+
+1. New **Web Service** → this repo → **Docker** (`./Dockerfile`)
+2. Attach Postgres or set `DATABASE_URL` (Neon)
+3. Set the same env vars as in `.env.example` / the table below
 
 | Variable | Example |
 |---|---|
-| `DATABASE_URL` | Neon Postgres URL |
+| `DATABASE_URL` | Neon or Render Postgres URL |
 | `JWT_KEY` | long random secret (≥32 chars) |
 | `App_FrontendUrl` / `FRONTEND_URL` | `https://your-app.vercel.app` |
 | `App_Url` | `https://your-service.onrender.com` |
+| `Cors_AllowedOrigins` | frontend origin |
 | `FIREBASE_PROJECT_ID` | Firebase project id (enough for ID-token verify) |
 | `FIREBASE_CREDENTIALS_JSON` | Optional service-account JSON (one line) — or `GOOGLE_APPLICATION_CREDENTIALS` |
 
