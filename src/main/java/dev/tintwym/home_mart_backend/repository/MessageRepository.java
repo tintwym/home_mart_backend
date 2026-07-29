@@ -12,6 +12,26 @@ public interface MessageRepository extends JpaRepository<Message, String> {
 
     List<Message> findByConversationIdOrderByCreatedAtDesc(String conversationId);
 
+    @Query("""
+            SELECT m FROM Message m
+            WHERE m.conversationId = :conversationId
+              AND m.createdAt < :before
+            ORDER BY m.createdAt DESC
+            """)
+    List<Message> findOlderThan(
+            @Param("conversationId") String conversationId,
+            @Param("before") java.time.Instant before);
+
+    @Query("""
+            SELECT m FROM Message m
+            WHERE m.conversationId = :conversationId
+              AND m.createdAt > :after
+            ORDER BY m.createdAt ASC
+            """)
+    List<Message> findNewerThan(
+            @Param("conversationId") String conversationId,
+            @Param("after") java.time.Instant after);
+
     long countByConversationIdAndUserIdNotAndReadAtIsNull(String conversationId, String userId);
 
     @Query("""

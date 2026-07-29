@@ -4,6 +4,7 @@ import dev.tintwym.home_mart_backend.entity.User;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,10 +22,15 @@ public class UsersController {
 
     private final UserRepository userRepository;
     private final ListingRepository listingRepository;
+    private final ListingSoldService listingSoldService;
 
-    public UsersController(UserRepository userRepository, ListingRepository listingRepository) {
+    public UsersController(
+            UserRepository userRepository,
+            ListingRepository listingRepository,
+            ListingSoldService listingSoldService) {
         this.userRepository = userRepository;
         this.listingRepository = listingRepository;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping("/{id}")
@@ -34,10 +40,8 @@ public class UsersController {
         if (user == null) {
             return ApiResponses.notFound("User not found.");
         }
-        List<Map<String, Object>> listings = listingRepository.findByUserIdWithRelations(id).stream()
-                .limit(50)
-                .map(ApiJson::listingSummaryJson)
-                .toList();
+        List<Map<String, Object>> listings = listingSoldService.toSummaryJsonList(
+                listingRepository.findByUserIdWithRelations(id).stream().limit(50).toList());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("user", ApiJson.publicUserJson(user));
         body.put("listings", listings);

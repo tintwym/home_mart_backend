@@ -20,7 +20,7 @@ public class ShopController {
         body.put("locales", ShopConfig.SUPPORTED_LOCALES);
         body.put("region_locales", ShopConfig.REGION_LOCALES);
         body.put("currencies", ShopConfig.CURRENCIES);
-        body.put("exchange_rates", ShopConfig.EXCHANGE_RATES);
+        body.put("exchange_rates", ShopConfig.exchangeRatesJson());
         body.put("locations", ShopConfig.REGION_LOCATIONS);
         body.put("trend_price", ShopConfig.TREND_PRICE);
         body.put("slot_price", ShopConfig.SLOT_PRICE);

@@ -3,13 +3,12 @@ package dev.tintwym.home_mart_backend.controller.api;
 import dev.tintwym.home_mart_backend.config.AppProperties;
 import dev.tintwym.home_mart_backend.entity.Listing;
 import dev.tintwym.home_mart_backend.entity.OrderEntity;
-import dev.tintwym.home_mart_backend.entity.OrderItem;
 import dev.tintwym.home_mart_backend.entity.User;
-import dev.tintwym.home_mart_backend.repository.CartItemRepository;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
-import dev.tintwym.home_mart_backend.repository.OrderItemRepository;
 import dev.tintwym.home_mart_backend.repository.OrderRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
+import dev.tintwym.home_mart_backend.service.OrderFulfillmentService;
+import dev.tintwym.home_mart_backend.service.OrderStatuses;
 import dev.tintwym.home_mart_backend.service.ShopConfig;
 import dev.tintwym.home_mart_backend.service.StripeService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
@@ -17,9 +16,13 @@ import dev.tintwym.home_mart_backend.utility.AuthSupport;
 import dev.tintwym.home_mart_backend.dto.ApiRequests.StripeDefaultPaymentRequest;
 import dev.tintwym.home_mart_backend.dto.ApiRequests.StripeOrderRequest;
 import dev.tintwym.home_mart_backend.dto.ApiRequests.StripeSessionRequest;
+import com.stripe.exception.SignatureVerificationException;
 import com.stripe.exception.StripeException;
+import com.stripe.model.Event;
+import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.PaymentMethod;
 import com.stripe.model.SetupIntent;
+import com.stripe.model.StripeObject;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.CustomerUpdateParams;
 import com.stripe.param.PaymentMethodAttachParams;
@@ -37,6 +40,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -47,26 +51,23 @@ public class StripeController {
     private final StripeService stripeService;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final CartItemRepository cartItemRepository;
     private final ListingRepository listingRepository;
     private final AppProperties appProperties;
+    private final OrderFulfillmentService orderFulfillmentService;
 
     public StripeController(
             StripeService stripeService,
             UserRepository userRepository,
             OrderRepository orderRepository,
-            OrderItemRepository orderItemRepository,
-            CartItemRepository cartItemRepository,
             ListingRepository listingRepository,
-            AppProperties appProperties) {
+            AppProperties appProperties,
+            OrderFulfillmentService orderFulfillmentService) {
         this.stripeService = stripeService;
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
-        this.orderItemRepository = orderItemRepository;
-        this.cartItemRepository = cartItemRepository;
         this.listingRepository = listingRepository;
         this.appProperties = appProperties;
+        this.orderFulfillmentService = orderFulfillmentService;
     }
 
     @PostMapping("/checkout/stripe")
@@ -74,17 +75,18 @@ public class StripeController {
     public ResponseEntity<?> checkoutStripe(@RequestBody StripeOrderRequest request) {
         User user = requireUser();
         OrderEntity order = orderRepository.findById(request.orderId()).orElse(null);
-        if (order == null || !user.getId().equals(order.getUserId()) || !"pending".equals(order.getStatus())) {
+        if (order == null
+                || !user.getId().equals(order.getUserId())
+                || !(OrderStatuses.PENDING.equals(order.getStatus())
+                        || OrderStatuses.RESERVED.equals(order.getStatus()))) {
             return ApiResponses.notFound("Order not found.");
         }
-        for (OrderItem item : orderItemRepository.findByOrderId(order.getId())) {
-            if (orderItemRepository.existsByListingIdAndOrder_StatusIn(
-                    item.getListingId(), List.of("paid", "completed"))) {
-                return ApiResponses.unprocessable("One or more listings have already been sold.");
-            }
+        if (orderFulfillmentService.hasSoldConflictExcluding(order.getId())) {
+            return ApiResponses.unprocessable("One or more listings have already been sold.");
         }
         if (!stripeService.isConfigured()) {
-            return ApiResponses.unprocessable("Stripe is not configured.");
+            return ApiResponses.unprocessable(
+                    "Stripe test mode is not configured. Use pk_test_ / sk_test_ keys.");
         }
         try {
             String currency = ShopConfig.DEFAULT_CURRENCY.code();
@@ -94,16 +96,18 @@ public class StripeController {
                     user, order.getId(), order.getTotal(), currency, success, cancel);
             userRepository.save(user);
             order.setStripeSessionId(session.getId());
-            order.setPaymentGateway("stripe");
+            order.setPaymentGateway("stripe_test");
             orderRepository.save(order);
+            orderFulfillmentService.markReserved(order);
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("url", session.getUrl());
             body.put("session_id", session.getId());
             body.put("publishable_key", stripeService.getPublishableKey());
+            body.put("test_mode", true);
             return ResponseEntity.ok(body);
         } catch (StripeException | IllegalStateException e) {
-            return ApiResponses.unprocessable("Unable to create Stripe checkout: " + e.getMessage());
+            return ApiResponses.unprocessable("Unable to create Stripe test checkout: " + e.getMessage());
         }
     }
 
@@ -112,32 +116,62 @@ public class StripeController {
     public ResponseEntity<?> checkoutSuccess(@RequestBody StripeSessionRequest request) {
         User user = requireUser();
         if (!stripeService.isConfigured()) {
-            return ApiResponses.unprocessable("Stripe is not configured.");
+            return ApiResponses.unprocessable("Stripe test mode is not configured.");
         }
         try {
             Session session = stripeService.retrieveSession(request.sessionId());
-            if (!"paid".equalsIgnoreCase(session.getPaymentStatus())
-                    && !"complete".equalsIgnoreCase(session.getStatus())) {
-                return ApiResponses.unprocessable("Payment is not completed.");
-            }
-            String orderId = session.getMetadata() == null ? null : session.getMetadata().get("order_id");
-            OrderEntity order = orderId == null
-                    ? orderRepository.findByStripeSessionId(session.getId()).orElse(null)
-                    : orderRepository.findById(orderId).orElse(null);
-            if (order == null || !user.getId().equals(order.getUserId())) {
-                return ApiResponses.notFound("Order not found.");
-            }
-            if (!"paid".equals(order.getStatus()) && !"completed".equals(order.getStatus())) {
-                order.setStatus("paid");
-                order.setStripeSessionId(session.getId());
-                order.setPaymentGateway("stripe");
-                orderRepository.save(order);
-                cartItemRepository.deleteByUserId(user.getId());
-            }
-            return ResponseEntity.ok(Map.of("message", "Payment successful.", "order_id", order.getId()));
+            String outcome = orderFulfillmentService.fulfillStripePaidSession(session, user.getId());
+            return switch (outcome) {
+                case "paid", "already_paid" -> ResponseEntity.ok(Map.of(
+                        "message", "Test payment successful.",
+                        "order_id", session.getMetadata() != null
+                                ? session.getMetadata().getOrDefault("order_id", "")
+                                : "",
+                        "test_mode", true,
+                        "outcome", outcome));
+                case "conflict_refunded" -> ApiResponses.unprocessable(
+                        "Item was already sold. Your test payment was refunded.");
+                case "conflict_no_refund" -> ApiResponses.unprocessable(
+                        "Item was already sold. Contact support about your test payment.");
+                case "wrong_user", "not_found" -> ApiResponses.notFound("Order not found.");
+                default -> ApiResponses.unprocessable("Payment is not completed.");
+            };
         } catch (StripeException e) {
             return ApiResponses.unprocessable("Unable to verify Stripe session.");
         }
+    }
+
+    @PostMapping("/stripe/webhook")
+    @Transactional
+    public ResponseEntity<?> stripeWebhook(
+            @RequestBody String payload,
+            @RequestHeader(value = "Stripe-Signature", required = false) String signature) {
+        if (signature == null || signature.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Missing Stripe-Signature."));
+        }
+        try {
+            Event event = stripeService.constructWebhookEvent(payload, signature);
+            if ("checkout.session.completed".equals(event.getType())) {
+                Session session = deserializeSession(event);
+                if (session != null
+                        && "order".equals(
+                                session.getMetadata() == null ? null : session.getMetadata().get("type"))) {
+                    orderFulfillmentService.fulfillStripePaidSession(session, null);
+                }
+            }
+            return ResponseEntity.ok(Map.of("received", true));
+        } catch (SignatureVerificationException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    private Session deserializeSession(Event event) {
+        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+        StripeObject obj = deserializer.getObject().orElse(null);
+        if (obj instanceof Session session) {
+            return session;
+        }
+        return null;
     }
 
     @PostMapping("/listings/{id}/promote/checkout")
@@ -184,8 +218,7 @@ public class StripeController {
         }
         try {
             Session session = stripeService.retrieveSession(request.sessionId());
-            if (!"paid".equalsIgnoreCase(session.getPaymentStatus())
-                    && !"complete".equalsIgnoreCase(session.getStatus())) {
+            if (!"paid".equalsIgnoreCase(session.getPaymentStatus())) {
                 return ApiResponses.unprocessable("Payment is not completed.");
             }
             Map<String, String> metadata = session.getMetadata();

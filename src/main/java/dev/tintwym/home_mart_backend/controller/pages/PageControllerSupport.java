@@ -100,7 +100,7 @@ public abstract class PageControllerSupport {
         ShopConfig.Currency currency =
                 ShopConfig.CURRENCIES.getOrDefault(region, ShopConfig.DEFAULT_CURRENCY);
         String preferred = cookieOrNull(request, "shop_currency");
-        if (preferred != null) {
+        if (preferred != null && !preferred.isBlank()) {
             for (ShopConfig.Currency c : ShopConfig.CURRENCIES.values()) {
                 if (c.code().equals(preferred)) {
                     return c;
@@ -118,7 +118,7 @@ public abstract class PageControllerSupport {
         ShopConfig.Currency currency =
                 ShopConfig.CURRENCIES.getOrDefault(region, ShopConfig.DEFAULT_CURRENCY);
         String preferred = cookieOrNull(request, "shop_currency");
-        if (preferred != null) {
+        if (preferred != null && !preferred.isBlank()) {
             for (ShopConfig.Currency c : ShopConfig.CURRENCIES.values()) {
                 if (c.code().equals(preferred)) {
                     return c;

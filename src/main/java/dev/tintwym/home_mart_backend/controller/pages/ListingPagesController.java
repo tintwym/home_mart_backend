@@ -11,12 +11,12 @@ import dev.tintwym.home_mart_backend.repository.CartItemRepository;
 import dev.tintwym.home_mart_backend.repository.ConversationRepository;
 import dev.tintwym.home_mart_backend.repository.FavoriteRepository;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
-import dev.tintwym.home_mart_backend.repository.OrderItemRepository;
 import dev.tintwym.home_mart_backend.repository.ReviewRepository;
 import dev.tintwym.home_mart_backend.repository.SubcategoryRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
 import dev.tintwym.home_mart_backend.service.InertiaService;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.service.ShopConfig;
 import dev.tintwym.home_mart_backend.service.StripeService;
 import dev.tintwym.home_mart_backend.utility.UlidService;
@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,7 +54,7 @@ public class ListingPagesController extends PageControllerSupport {
     private final FavoriteRepository favoriteRepository;
     private final CartItemRepository cartItemRepository;
     private final ConversationRepository conversationRepository;
-    private final OrderItemRepository orderItemRepository;
+    private final ListingSoldService listingSoldService;
     private final UploadService uploadService;
     private final StripeService stripeService;
     private final AppProperties appProperties;
@@ -67,7 +68,7 @@ public class ListingPagesController extends PageControllerSupport {
             FavoriteRepository favoriteRepository,
             CartItemRepository cartItemRepository,
             ConversationRepository conversationRepository,
-            OrderItemRepository orderItemRepository,
+            ListingSoldService listingSoldService,
             UploadService uploadService,
             StripeService stripeService,
             AppProperties appProperties) {
@@ -78,7 +79,7 @@ public class ListingPagesController extends PageControllerSupport {
         this.favoriteRepository = favoriteRepository;
         this.cartItemRepository = cartItemRepository;
         this.conversationRepository = conversationRepository;
-        this.orderItemRepository = orderItemRepository;
+        this.listingSoldService = listingSoldService;
         this.uploadService = uploadService;
         this.stripeService = stripeService;
         this.appProperties = appProperties;
@@ -114,7 +115,7 @@ public class ListingPagesController extends PageControllerSupport {
         props.put("maxListingSlots", maxSlots);
         props.put("canCreate", count < maxSlots);
         props.put("slotPrice", ShopConfig.SLOT_PRICE);
-        props.put("slotPriceLabel", currency.symbol() + ShopConfig.SLOT_PRICE + " per slot");
+        props.put("slotPriceLabel", ShopConfig.formatUsdFee(ShopConfig.SLOT_PRICE, currency, "per slot"));
         return render(request, response, "listings/create", props);
     }
 
@@ -200,25 +201,32 @@ public class ListingPagesController extends PageControllerSupport {
                 .orElse(0);
         long reviewCount = reviews.stream().filter(r -> r.getParentId() == null).count();
 
-        List<Listing> related = listingRepository.findBySubcategoryIdOrderByCreatedAtDesc(listing.getSubcategoryId())
+        List<Listing> relatedCandidates = listingRepository
+                .findBySubcategoryIdOrderByCreatedAtDesc(listing.getSubcategoryId())
                 .stream()
                 .filter(l -> !l.getId().equals(id))
+                .limit(24)
+                .toList();
+        Set<String> soldRelated = listingSoldService.soldAmong(
+                relatedCandidates.stream().map(Listing::getId).toList());
+        List<Listing> related = relatedCandidates.stream()
+                .filter(l -> !soldRelated.contains(l.getId()))
                 .limit(6)
                 .toList();
         List<String> relatedIds = related.stream().map(Listing::getId).toList();
-        List<Map<String, Object>> relatedJson = listingRepository.findDetailedByIdIn(relatedIds).stream()
-                .map(ApiJson::listingSummaryJson)
-                .toList();
+        List<Map<String, Object>> relatedJson =
+                listingSoldService.toSummaryJsonList(listingRepository.findDetailedByIdIn(relatedIds));
 
         ShopConfig.Currency currency = currencyFor(request);
-        Map<String, Object> listingMap = ApiJson.listingSummaryJson(listing);
+        Map<String, Object> listingMap = listingSoldService.toSummaryJson(listing);
         listingMap.put("reviews", reviewJson);
 
         Map<String, Object> props = new LinkedHashMap<>();
         props.put("listing", listingMap);
         props.put("averageRating", Math.round(avg * 10.0) / 10.0);
         props.put("reviewCount", reviewCount);
-        props.put("trendPriceLabel", currency.symbol() + ShopConfig.TREND_PRICE + " for " + ShopConfig.TREND_DURATION_DAYS + " days");
+        props.put("trendPriceLabel", ShopConfig.formatUsdFee(
+                ShopConfig.TREND_PRICE, currency, "for " + ShopConfig.TREND_DURATION_DAYS + " days"));
         props.put("trendDurationDays", ShopConfig.TREND_DURATION_DAYS);
         props.put("relatedListings", relatedJson);
         return render(request, response, "listings/show", props);
@@ -243,7 +251,7 @@ public class ListingPagesController extends PageControllerSupport {
                 .map(ApiJson::subcategoryJson)
                 .toList();
         Map<String, Object> props = new LinkedHashMap<>();
-        props.put("listing", ApiJson.listingSummaryJson(listing));
+        props.put("listing", listingSoldService.toSummaryJson(listing));
         props.put("subcategories", subs);
         return render(request, response, "listings/edit", props);
     }
@@ -380,7 +388,7 @@ public class ListingPagesController extends PageControllerSupport {
         if (listing.getUserId().equals(user.getId())) {
             return backWithError(request, response, "You cannot add your own listing to cart.");
         }
-        if (orderItemRepository.existsByListingIdAndOrder_StatusIn(id, List.of("paid", "completed"))) {
+        if (listingSoldService.isSold(id)) {
             return backWithError(request, response, "This listing has already been sold.");
         }
         if (!cartItemRepository.existsByUserIdAndListingId(user.getId(), id)) {
@@ -426,15 +434,21 @@ public class ListingPagesController extends PageControllerSupport {
         if (listing.getUserId().equals(user.getId())) {
             return backWithError(request, response, "You cannot chat with yourself.");
         }
-        Conversation conversation = conversationRepository.findByListingIdAndBuyerId(id, user.getId())
-                .orElseGet(() -> {
-                    Conversation c = new Conversation();
-                    c.setId(UlidService.newUlid());
-                    c.setListingId(id);
-                    c.setBuyerId(user.getId());
-                    return conversationRepository.save(c);
-                });
-        return redirect(request, "/chat/" + conversation.getId());
+        try {
+            Conversation conversation = conversationRepository.findByListingIdAndBuyerId(id, user.getId())
+                    .orElseGet(() -> {
+                        Conversation c = new Conversation();
+                        c.setId(UlidService.newUlid());
+                        c.setListingId(id);
+                        c.setBuyerId(user.getId());
+                        return conversationRepository.save(c);
+                    });
+            return redirect(request, "/chat/" + conversation.getId());
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            Conversation existing = conversationRepository.findByListingIdAndBuyerId(id, user.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT));
+            return redirect(request, "/chat/" + existing.getId());
+        }
     }
 
     @PostMapping("/listings/{id}/promote")

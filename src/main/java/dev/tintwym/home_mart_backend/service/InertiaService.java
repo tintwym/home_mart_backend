@@ -187,7 +187,19 @@ public class InertiaService {
             HttpServletRequest request, HttpServletResponse response, String fallback) {
         String referer = request.getHeader(HttpHeaders.REFERER);
         if (referer != null && !referer.isBlank()) {
-            return redirect(request, referer);
+            try {
+                java.net.URI uri = java.net.URI.create(referer);
+                String path = uri.getRawPath();
+                if (path == null || path.isBlank()) {
+                    path = "/";
+                }
+                String query = uri.getRawQuery();
+                String location =
+                        query == null || query.isBlank() ? path : path + "?" + query;
+                return redirect(request, location);
+            } catch (Exception ignored) {
+                // Fall through to fallback.
+            }
         }
         return redirect(request, fallback == null ? "/" : fallback);
     }
@@ -337,7 +349,7 @@ public class InertiaService {
                 "symbol", currency.symbol(),
                 "decimals", currency.decimals()));
         shared.put("currencies", ShopConfig.CURRENCIES);
-        shared.put("exchangeRates", ShopConfig.EXCHANGE_RATES);
+        shared.put("exchangeRates", ShopConfig.exchangeRatesJson());
         return shared;
     }
 

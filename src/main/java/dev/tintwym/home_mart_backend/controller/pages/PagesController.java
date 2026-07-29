@@ -13,6 +13,7 @@ import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
 import dev.tintwym.home_mart_backend.service.AuthCookieService;
 import dev.tintwym.home_mart_backend.service.InertiaService;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.service.ShopConfig;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -41,6 +42,7 @@ public class PagesController extends PageControllerSupport {
     private final SubcategoryRepository subcategoryRepository;
     private final ReviewRepository reviewRepository;
     private final AuthCookieService authCookieService;
+    private final ListingSoldService listingSoldService;
 
     public PagesController(
             InertiaService inertia,
@@ -49,13 +51,15 @@ public class PagesController extends PageControllerSupport {
             CategoryRepository categoryRepository,
             SubcategoryRepository subcategoryRepository,
             ReviewRepository reviewRepository,
-            AuthCookieService authCookieService) {
+            AuthCookieService authCookieService,
+            ListingSoldService listingSoldService) {
         super(inertia, userRepository);
         this.listingRepository = listingRepository;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.reviewRepository = reviewRepository;
         this.authCookieService = authCookieService;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping({"/", "/dashboard", "/home"})
@@ -72,9 +76,8 @@ public class PagesController extends PageControllerSupport {
             raw = raw.subList(0, 100);
         }
         List<String> ids = raw.stream().map(Listing::getId).toList();
-        List<Map<String, Object>> listings = listingRepository.findDetailedByIdIn(ids).stream()
-                .map(ApiJson::listingSummaryJson)
-                .toList();
+        List<Map<String, Object>> listings =
+                listingSoldService.toSummaryJsonList(listingRepository.findDetailedByIdIn(ids));
         // Preserve trending order from search
         Map<String, Map<String, Object>> byId = listings.stream()
                 .collect(Collectors.toMap(m -> String.valueOf(m.get("id")), m -> m, (a, b) -> a, LinkedHashMap::new));
@@ -97,9 +100,10 @@ public class PagesController extends PageControllerSupport {
             Subcategory sub = subOpt.get();
             List<Listing> listings = listingRepository.search(null, sub.getId(), null);
             List<String> ids = listings.stream().map(Listing::getId).toList();
-            Map<String, Map<String, Object>> byId = listingRepository.findDetailedByIdIn(ids).stream()
-                    .map(ApiJson::listingSummaryJson)
-                    .collect(Collectors.toMap(m -> String.valueOf(m.get("id")), m -> m, (a, b) -> a, LinkedHashMap::new));
+            Map<String, Map<String, Object>> byId =
+                    listingSoldService.toSummaryJsonList(listingRepository.findDetailedByIdIn(ids)).stream()
+                            .collect(Collectors.toMap(
+                                    m -> String.valueOf(m.get("id")), m -> m, (a, b) -> a, LinkedHashMap::new));
             List<Map<String, Object>> ordered = ids.stream().map(byId::get).filter(m -> m != null).toList();
 
             Map<String, Object> props = new LinkedHashMap<>();
@@ -112,9 +116,10 @@ public class PagesController extends PageControllerSupport {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found"));
         List<Listing> listings = listingRepository.searchByCategory(null, category.getId(), null, null);
         List<String> ids = listings.stream().map(Listing::getId).toList();
-        Map<String, Map<String, Object>> byId = listingRepository.findDetailedByIdIn(ids).stream()
-                .map(ApiJson::listingSummaryJson)
-                .collect(Collectors.toMap(m -> String.valueOf(m.get("id")), m -> m, (a, b) -> a, LinkedHashMap::new));
+        Map<String, Map<String, Object>> byId =
+                listingSoldService.toSummaryJsonList(listingRepository.findDetailedByIdIn(ids)).stream()
+                        .collect(Collectors.toMap(
+                                m -> String.valueOf(m.get("id")), m -> m, (a, b) -> a, LinkedHashMap::new));
         List<Map<String, Object>> ordered = ids.stream().map(byId::get).filter(m -> m != null).toList();
 
         Map<String, Object> catMap = new LinkedHashMap<>();
@@ -149,7 +154,7 @@ public class PagesController extends PageControllerSupport {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         List<Listing> listings = listingRepository.findByUserIdWithRelations(id);
-        List<Map<String, Object>> listingJson = listings.stream().map(ApiJson::listingSummaryJson).toList();
+        List<Map<String, Object>> listingJson = listingSoldService.toSummaryJsonList(listings);
         List<String> listingIds = listings.stream().map(Listing::getId).toList();
         List<Review> reviews = listingIds.isEmpty()
                 ? List.of()
@@ -171,8 +176,8 @@ public class PagesController extends PageControllerSupport {
             HttpServletRequest request,
             HttpServletResponse response,
             @RequestParam(value = "region", required = false) String region) {
-        if (region != null && ShopConfig.REGIONS.contains(region)) {
-            authCookieService.setShopRegion(response, region);
+        if (region != null && ShopConfig.REGIONS.contains(region.trim().toUpperCase())) {
+            authCookieService.setShopRegion(response, region.trim().toUpperCase());
         }
         return inertia.back(request, response, "/");
     }

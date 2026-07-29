@@ -129,7 +129,11 @@ public class AuthPagesController extends PageControllerSupport {
         user.setEmail(normalizedEmail);
         user.setPassword(passwordEncoder.encode(password));
         user.setAuthProvider("password");
-        user.setSellerType(sellerType == null || sellerType.isBlank() ? "individual" : sellerType);
+        if ("business".equals(sellerType)) {
+            user.setSellerType("business");
+        } else {
+            user.setSellerType("individual");
+        }
         user.setRegion(geoRegionService.detect(request));
         userRepository.save(user);
 
@@ -149,6 +153,10 @@ public class AuthPagesController extends PageControllerSupport {
         try {
             FirebaseAuthService.VerifiedIdentity identity = firebaseAuthService.verifyIdToken(tokenValue);
             User user = firebaseAuthService.findOrCreateUser(identity, geoRegionService.detect(request));
+            if (user.hasConfirmedTwoFactor()) {
+                authCookieService.setTwoFactorPending(response, user.getId());
+                return redirect(request, "/two-factor-challenge");
+            }
             String jwt = jwtService.createToken(user);
             authCookieService.setTokenCookie(response, jwt);
             return redirectWithStatus(request, response, "/", "Welcome back.");

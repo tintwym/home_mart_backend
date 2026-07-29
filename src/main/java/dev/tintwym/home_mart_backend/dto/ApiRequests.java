@@ -63,7 +63,7 @@ public final class ApiRequests {
 
     public record LocalPayRequest(
             @NotBlank String orderId,
-            @NotBlank @Size(max = 30) String method,
+            @Size(max = 30) String method,
             @Size(max = 50) String identifier,
             Boolean saveMethod) {
     }

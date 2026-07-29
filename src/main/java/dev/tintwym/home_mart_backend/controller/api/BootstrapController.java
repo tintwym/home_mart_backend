@@ -128,7 +128,7 @@ public class BootstrapController {
         body.put("category_tree", categoryTree);
         body.put("locations", ShopConfig.REGION_LOCATIONS.getOrDefault(resolvedRegion, List.of()));
         body.put("currencies", ShopConfig.CURRENCIES);
-        body.put("exchange_rates", ShopConfig.EXCHANGE_RATES);
+        body.put("exchange_rates", ShopConfig.exchangeRatesJson());
         body.put("regions", ShopConfig.REGIONS);
         body.put("region_labels", ShopConfig.REGION_LABELS);
         body.put("translations", translationService.get(resolvedLocale));
@@ -139,7 +139,7 @@ public class BootstrapController {
     public ResponseEntity<?> detectRegion(HttpServletRequest request) {
         String region = geoRegionService.detect(request);
         if (region == null || !ShopConfig.REGIONS.contains(region)) {
-            region = "US";
+            region = "MM";
         }
         ShopConfig.Currency currency = ShopConfig.CURRENCIES.getOrDefault(region, ShopConfig.DEFAULT_CURRENCY);
         Map<String, Object> body = new LinkedHashMap<>();
@@ -161,7 +161,7 @@ public class BootstrapController {
             return user.getRegion();
         }
         String detected = geoRegionService.detect(request);
-        return detected != null && ShopConfig.REGIONS.contains(detected) ? detected : "US";
+        return detected != null && ShopConfig.REGIONS.contains(detected) ? detected : "MM";
     }
 
     private String resolveCurrency(String queryCurrency, String region) {

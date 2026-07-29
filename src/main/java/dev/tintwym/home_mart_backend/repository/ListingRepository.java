@@ -62,6 +62,11 @@ public interface ListingRepository extends JpaRepository<Listing, String> {
               AND (:subcategoryId IS NULL OR :subcategoryId = '' OR l.subcategoryId = :subcategoryId)
               AND (:meetupLocation IS NULL OR :meetupLocation = ''
                    OR LOWER(l.meetupLocation) LIKE LOWER(CONCAT('%', :meetupLocation, '%')))
+              AND NOT EXISTS (
+                    SELECT 1 FROM OrderItem oi, OrderEntity o
+                    WHERE oi.orderId = o.id AND oi.listingId = l.id
+                      AND o.status IN ('paid', 'completed', 'arranged', 'reserved')
+              )
             ORDER BY CASE
                        WHEN l.trendingUntil IS NOT NULL AND l.trendingUntil > CURRENT_TIMESTAMP THEN 0
                        ELSE 1
@@ -84,6 +89,11 @@ public interface ListingRepository extends JpaRepository<Listing, String> {
               AND (:subcategoryId IS NULL OR :subcategoryId = '' OR l.subcategoryId = :subcategoryId)
               AND (:meetupLocation IS NULL OR :meetupLocation = ''
                    OR LOWER(l.meetupLocation) LIKE LOWER(CONCAT('%', :meetupLocation, '%')))
+              AND NOT EXISTS (
+                    SELECT 1 FROM OrderItem oi, OrderEntity o
+                    WHERE oi.orderId = o.id AND oi.listingId = l.id
+                      AND o.status IN ('paid', 'completed', 'arranged', 'reserved')
+              )
             ORDER BY CASE
                        WHEN l.trendingUntil IS NOT NULL AND l.trendingUntil > CURRENT_TIMESTAMP THEN 0
                        ELSE 1

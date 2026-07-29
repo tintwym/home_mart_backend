@@ -6,10 +6,11 @@ import dev.tintwym.home_mart_backend.entity.User;
 import dev.tintwym.home_mart_backend.repository.ConversationRepository;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
+import dev.tintwym.home_mart_backend.service.ChatTypingService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
 import dev.tintwym.home_mart_backend.utility.AuthSupport;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,20 +23,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ChatTypingController {
 
-    private static final long TTL_MS = 5_000L;
-    private static final ConcurrentHashMap<String, TypingEntry> TYPING = new ConcurrentHashMap<>();
-
     private final ConversationRepository conversationRepository;
     private final ListingRepository listingRepository;
     private final UserRepository userRepository;
+    private final ChatTypingService chatTypingService;
 
     public ChatTypingController(
             ConversationRepository conversationRepository,
             ListingRepository listingRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ChatTypingService chatTypingService) {
         this.conversationRepository = conversationRepository;
         this.listingRepository = listingRepository;
         this.userRepository = userRepository;
+        this.chatTypingService = chatTypingService;
     }
 
     @PostMapping("/conversations/{id}/typing")
@@ -46,9 +47,7 @@ public class ChatTypingController {
             return ApiResponses.notFound("Conversation not found.");
         }
         User user = userRepository.findById(userId).orElse(null);
-        TYPING.put(
-                id,
-                new TypingEntry(userId, user == null ? null : user.getName(), System.currentTimeMillis() + TTL_MS));
+        chatTypingService.setTyping(id, userId, user == null ? null : user.getName());
         return ResponseEntity.noContent().build();
     }
 
@@ -59,13 +58,11 @@ public class ChatTypingController {
         if (!isParticipant(id, userId)) {
             return ApiResponses.notFound("Conversation not found.");
         }
-        TypingEntry entry = TYPING.get(id);
-        long now = System.currentTimeMillis();
-        if (entry == null || entry.expiresAt() < now || userId.equals(entry.userId())) {
-            return ResponseEntity.ok(Map.of("typing", false, "user_name", ""));
-        }
-        String name = entry.userName() == null ? "" : entry.userName();
-        return ResponseEntity.ok(Map.of("typing", true, "user_name", name));
+        ChatTypingService.TypingSnapshot snap = chatTypingService.otherTyping(id, userId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("typing", snap.typing());
+        body.put("user_name", snap.userName() == null ? "" : snap.userName());
+        return ResponseEntity.ok(body);
     }
 
     private boolean isParticipant(String conversationId, String userId) {
@@ -78,8 +75,5 @@ public class ChatTypingController {
             return false;
         }
         return userId.equals(conversation.getBuyerId()) || userId.equals(listing.getUserId());
-    }
-
-    private record TypingEntry(String userId, String userName, long expiresAt) {
     }
 }

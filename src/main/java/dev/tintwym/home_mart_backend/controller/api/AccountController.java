@@ -13,6 +13,7 @@ import dev.tintwym.home_mart_backend.repository.OrderItemRepository;
 import dev.tintwym.home_mart_backend.repository.OrderRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.service.ShopConfig;
 import dev.tintwym.home_mart_backend.utility.UlidService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
@@ -48,6 +49,7 @@ public class AccountController {
     private final LocalPaymentMethodRepository localPaymentMethodRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final ListingSoldService listingSoldService;
 
     public AccountController(
             UserRepository userRepository,
@@ -56,7 +58,8 @@ public class AccountController {
             ListingRepository listingRepository,
             LocalPaymentMethodRepository localPaymentMethodRepository,
             OrderRepository orderRepository,
-            OrderItemRepository orderItemRepository) {
+            OrderItemRepository orderItemRepository,
+            ListingSoldService listingSoldService) {
         this.userRepository = userRepository;
         this.cartItemRepository = cartItemRepository;
         this.favoriteRepository = favoriteRepository;
@@ -64,6 +67,7 @@ public class AccountController {
         this.localPaymentMethodRepository = localPaymentMethodRepository;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.listingSoldService = listingSoldService;
     }
 
     @RequestMapping(value = "/profile", method = {RequestMethod.PATCH, RequestMethod.PUT})
@@ -156,7 +160,7 @@ public class AccountController {
     public ResponseEntity<?> purchasedOrders() {
         String userId = AuthSupport.currentUserId();
         List<OrderEntity> orders =
-                orderRepository.findByUserIdAndStatusIn(userId, List.of("paid", "completed"));
+                orderRepository.findByUserIdAndStatusIn(userId, List.of("paid", "completed", "arranged"));
         List<Map<String, Object>> data = new ArrayList<>();
         for (OrderEntity order : orders) {
             data.add(orderJson(order));
@@ -271,10 +275,10 @@ public class AccountController {
             row.put("quantity", item.getQuantity());
             row.put("price", item.getPrice());
             if (item.getListing() != null) {
-                row.put("listing", ApiJson.listingSummaryJson(item.getListing()));
+                row.put("listing", listingSoldService.toSummaryJson(item.getListing()));
             } else {
                 listingRepository.findByIdWithRelations(item.getListingId())
-                        .ifPresent(l -> row.put("listing", ApiJson.listingSummaryJson(l)));
+                        .ifPresent(l -> row.put("listing", listingSoldService.toSummaryJson(l)));
             }
             items.add(row);
         }

@@ -11,6 +11,7 @@ import dev.tintwym.home_mart_backend.repository.ReviewRepository;
 import dev.tintwym.home_mart_backend.repository.SubcategoryRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.utility.UlidService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
 import dev.tintwym.home_mart_backend.utility.AuthSupport;
@@ -45,18 +46,21 @@ public class ListingsController {
     private final CategoryRepository categoryRepository;
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
+    private final ListingSoldService listingSoldService;
 
     public ListingsController(
             ListingRepository listingRepository,
             SubcategoryRepository subcategoryRepository,
             CategoryRepository categoryRepository,
             ReviewRepository reviewRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ListingSoldService listingSoldService) {
         this.listingRepository = listingRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.categoryRepository = categoryRepository;
         this.reviewRepository = reviewRepository;
         this.userRepository = userRepository;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping
@@ -96,11 +100,10 @@ public class ListingsController {
         int to = Math.min(from + size, total);
         List<Listing> pageItems = all.subList(from, to);
 
-        List<Map<String, Object>> data = new ArrayList<>();
         for (Listing listing : pageItems) {
             hydrate(listing);
-            data.add(ApiJson.listingSummaryJson(listing));
         }
+        List<Map<String, Object>> data = listingSoldService.toSummaryJsonList(pageItems);
 
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("current_page", pageNum);
@@ -140,16 +143,16 @@ public class ListingsController {
             reviewJson.add(row);
         }
 
-        List<Map<String, Object>> related = listingRepository
+        List<Listing> relatedListings = listingRepository
                 .search(null, listing.getSubcategoryId(), null)
                 .stream()
                 .filter(l -> !l.getId().equals(listing.getId()))
                 .limit(6)
-                .map(l -> {
-                    hydrate(l);
-                    return ApiJson.listingSummaryJson(l);
-                })
                 .toList();
+        for (Listing relatedListing : relatedListings) {
+            hydrate(relatedListing);
+        }
+        List<Map<String, Object>> related = listingSoldService.toSummaryJsonList(relatedListings);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", listing.getId());
@@ -163,6 +166,7 @@ public class ListingsController {
         data.put("trending_until", ApiJson.formatInstant(listing.getTrendingUntil()));
         data.put("is_trending", listing.isTrending());
         data.put("views_count", listing.getViewsCount());
+        data.put("is_sold", listingSoldService.isSold(listing.getId()));
         data.put("category", listing.getSubcategory() == null ? null : ApiJson.subcategoryJson(listing.getSubcategory()));
         data.put("seller", listing.getUser() == null ? null : ApiJson.userSummaryJson(listing.getUser()));
         data.put("average_rating", reviews.isEmpty() ? 0 : Math.round((sum / reviews.size()) * 10.0) / 10.0);

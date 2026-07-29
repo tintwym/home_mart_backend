@@ -62,6 +62,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/health", "/sanctum/**", "/storage/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/stripe/webhook").permitAll()
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/register",

@@ -114,16 +114,26 @@ public class ChatController {
         if (userId.equals(listing.getUserId())) {
             return ApiResponses.unprocessable("You cannot chat about your own listing.");
         }
-        Conversation conversation = conversationRepository
-                .findByListingIdAndBuyerId(listingId, userId)
-                .orElseGet(() -> {
-                    Conversation created = new Conversation();
-                    created.setId(UlidService.newUlid());
-                    created.setListingId(listingId);
-                    created.setBuyerId(userId);
-                    return conversationRepository.save(created);
-                });
-        return ResponseEntity.ok(Map.of("conversation_id", conversation.getId()));
+        try {
+            Conversation conversation = conversationRepository
+                    .findByListingIdAndBuyerId(listingId, userId)
+                    .orElseGet(() -> {
+                        Conversation created = new Conversation();
+                        created.setId(UlidService.newUlid());
+                        created.setListingId(listingId);
+                        created.setBuyerId(userId);
+                        return conversationRepository.save(created);
+                    });
+            return ResponseEntity.ok(Map.of("conversation_id", conversation.getId()));
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            Conversation existing = conversationRepository
+                    .findByListingIdAndBuyerId(listingId, userId)
+                    .orElse(null);
+            if (existing == null) {
+                return ApiResponses.unprocessable("Could not start chat.");
+            }
+            return ResponseEntity.ok(Map.of("conversation_id", existing.getId()));
+        }
     }
 
     @GetMapping("/conversations/{id}/messages")
@@ -160,8 +170,27 @@ public class ChatController {
         upsertRead(id, userId, now);
 
         Instant finalAfter = afterInstant;
-        List<Message> filtered = all.stream()
-                .filter(m -> finalAfter == null || m.getCreatedAt().isAfter(finalAfter))
+        List<Message> filtered;
+        if (finalAfter == null) {
+            // Initial load: newest 200 (not oldest).
+            List<Message> newestFirst = messageRepository.findByConversationIdOrderByCreatedAtDesc(id);
+            boolean hasMore = newestFirst.size() > 200;
+            List<Message> page = hasMore ? newestFirst.subList(0, 200) : newestFirst;
+            filtered = new ArrayList<>(page);
+            filtered.sort(Comparator.comparing(Message::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
+            List<Map<String, Object>> messages = new ArrayList<>();
+            for (Message msg : filtered) {
+                messages.add(messageJson(msg, userId));
+            }
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("conversation", Map.of("id", conversation.getId()));
+            body.put("messages", messages);
+            body.put("has_more", hasMore);
+            return ResponseEntity.ok(body);
+        }
+
+        filtered = all.stream()
+                .filter(m -> m.getCreatedAt() != null && m.getCreatedAt().isAfter(finalAfter))
                 .sorted(Comparator.comparing(Message::getCreatedAt))
                 .limit(200)
                 .toList();
@@ -173,6 +202,7 @@ public class ChatController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("conversation", Map.of("id", conversation.getId()));
         body.put("messages", messages);
+        body.put("has_more", false);
         return ResponseEntity.ok(body);
     }
 

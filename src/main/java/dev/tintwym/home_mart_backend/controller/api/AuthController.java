@@ -5,6 +5,7 @@ import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
 import dev.tintwym.home_mart_backend.service.FirebaseAuthService;
 import dev.tintwym.home_mart_backend.service.JwtService;
+import dev.tintwym.home_mart_backend.service.ShopConfig;
 import dev.tintwym.home_mart_backend.utility.UlidService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
 import dev.tintwym.home_mart_backend.utility.AuthSupport;
@@ -67,7 +68,10 @@ public class AuthController {
             user.setSellerType(request.sellerType());
         }
         if (request.region() != null && !request.region().isBlank()) {
-            user.setRegion(request.region().trim().toUpperCase());
+            String region = request.region().trim().toUpperCase();
+            if (ShopConfig.REGIONS.contains(region)) {
+                user.setRegion(region);
+            }
         }
         userRepository.save(user);
 
@@ -108,6 +112,15 @@ public class AuthController {
             FirebaseAuthService.VerifiedIdentity identity =
                     firebaseAuthService.verifyIdToken(request.idToken());
             User user = firebaseAuthService.findOrCreateUser(identity, request.region());
+            if (user.hasConfirmedTwoFactor()) {
+                return ApiResponses.unprocessable(
+                        "Two factor authentication is required.",
+                        Map.of(
+                                "two_factor",
+                                java.util.List.of("Two factor authentication is required."),
+                                "two_factor_required",
+                                true));
+            }
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("user", ApiJson.apiUserJson(user));
             body.put("token", jwtService.createToken(user));

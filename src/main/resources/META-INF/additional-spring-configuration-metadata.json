@@ -16,8 +16,13 @@
       "sourceType": "dev.tintwym.home_mart_backend.config.CorsProperties"
     },
     {
-      "name": "shop",
-      "type": "dev.tintwym.home_mart_backend.config.ShopProperties",
+      "name": "shop.mmqr",
+      "type": "dev.tintwym.home_mart_backend.config.ShopProperties$Mmqr",
+      "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties"
+    },
+    {
+      "name": "shop.vnqr",
+      "type": "dev.tintwym.home_mart_backend.config.ShopProperties$Vnqr",
       "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties"
     },
     {
@@ -53,8 +58,20 @@
     { "name": "shop.default-region", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties" },
     { "name": "shop.default-region-private", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties" },
     { "name": "shop.gps-region-enabled", "type": "java.lang.Boolean", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties" },
+    { "name": "shop.mmqr.guid", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Mmqr" },
+    { "name": "shop.mmqr.merchant-id", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Mmqr" },
+    { "name": "shop.mmqr.merchant-name", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Mmqr" },
+    { "name": "shop.mmqr.merchant-city", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Mmqr" },
+    { "name": "shop.mmqr.mcc", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Mmqr" },
+    { "name": "shop.vnqr.bank-bin", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Vnqr" },
+    { "name": "shop.vnqr.account-number", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Vnqr" },
+    { "name": "shop.vnqr.account-name", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Vnqr" },
+    { "name": "shop.vnqr.merchant-city", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Vnqr" },
+    { "name": "shop.vnqr.mcc", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.ShopProperties$Vnqr" },
     { "name": "stripe.key", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.StripeProperties" },
     { "name": "stripe.secret", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.StripeProperties" },
+    { "name": "stripe.webhook-secret", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.StripeProperties" },
+    { "name": "stripe.test-mode-only", "type": "java.lang.Boolean", "sourceType": "dev.tintwym.home_mart_backend.config.StripeProperties" },
     { "name": "cloudinary.cloud-name", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.CloudinaryProperties" },
     { "name": "cloudinary.api-key", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.CloudinaryProperties" },
     { "name": "cloudinary.api-secret", "type": "java.lang.String", "sourceType": "dev.tintwym.home_mart_backend.config.CloudinaryProperties" },

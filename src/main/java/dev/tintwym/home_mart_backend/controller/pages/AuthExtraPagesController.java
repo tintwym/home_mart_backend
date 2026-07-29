@@ -406,6 +406,10 @@ public class AuthExtraPagesController extends PageControllerSupport {
         try {
             JsonNode credential = objectMapper.readTree(credentialJson);
             User user = passkeyService.completeAuthentication(state, credential);
+            if (user.hasConfirmedTwoFactor()) {
+                authCookieService.setTwoFactorPending(response, user.getId());
+                return redirect(request, "/two-factor-challenge");
+            }
             authCookieService.setTokenCookie(response, jwtService.createToken(user));
             return redirect(request, "/");
         } catch (Exception e) {

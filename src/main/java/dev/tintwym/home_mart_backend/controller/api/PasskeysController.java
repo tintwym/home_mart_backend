@@ -92,6 +92,15 @@ public class PasskeysController {
     public ResponseEntity<?> authenticate(@Valid @RequestBody PasskeyAuthenticateRequest request) {
         try {
             User user = passkeyService.completeAuthentication(request.state(), request.credential());
+            if (user.hasConfirmedTwoFactor()) {
+                return ApiResponses.unprocessable(
+                        "Two factor authentication is required.",
+                        Map.of(
+                                "two_factor",
+                                java.util.List.of("Two factor authentication is required."),
+                                "two_factor_required",
+                                true));
+            }
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("user", ApiJson.apiUserJson(user));
             body.put("token", jwtService.createToken(user));

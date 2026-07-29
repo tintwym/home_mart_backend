@@ -49,6 +49,7 @@ public final class ShopConfig {
             return "";
         }
         return switch (type) {
+            case "mmqr" -> "MMQR";
             case "mpu" -> "MPU";
             case "kbz_pay" -> "KBZ Pay";
             case "aya_pay" -> "AYA Pay";
@@ -57,7 +58,7 @@ public final class ShopConfig {
             case "momo" -> "MoMo";
             case "zalopay" -> "ZaloPay";
             case "shopeepay" -> "ShopeePay";
-            case "vietqr" -> "VietQR";
+            case "vnqr", "vietqr" -> "VNQR";
             case "atm_card" -> "ATM Card";
             case "bank" -> "Bank transfer";
             default -> type;
@@ -65,9 +66,9 @@ public final class ShopConfig {
     }
 
     public static final List<String> MYANMAR_PAYMENT_METHODS =
-            List.of("mpu", "kbz_pay", "aya_pay", "wave_pay", "cb_pay");
+            List.of("mmqr", "kbz_pay", "wave_pay", "aya_pay", "cb_pay", "mpu", "bank");
     public static final List<String> VIETNAM_PAYMENT_METHODS =
-            List.of("momo", "zalopay", "shopeepay", "vietqr", "atm_card", "bank");
+            List.of("vnqr", "momo", "zalopay", "shopeepay", "atm_card", "bank", "vietqr");
 
     /** GPS fallback anchors (km nearest) — mirrors shop.gps_fallback_anchors. */
     public static final Map<String, Location> GPS_FALLBACK_ANCHORS;
@@ -155,11 +156,20 @@ public final class ShopConfig {
         return amount.divide(fromRate, 10, RoundingMode.HALF_UP).multiply(toRate);
     }
 
+    public static Map<String, Double> exchangeRatesJson() {
+        Map<String, Double> ratesJson = new LinkedHashMap<>();
+        EXCHANGE_RATES.forEach((code, rate) -> ratesJson.put(code, rate.doubleValue()));
+        return ratesJson;
+    }
+
     public static BigDecimal convertFromUsd(BigDecimal usdAmount, String toCode) {
         return convert(usdAmount, "USD", toCode);
     }
 
     public static BigDecimal convertToUsd(BigDecimal amount, String fromCurrencyOrRegion) {
+        if (amount == null) {
+            return BigDecimal.ZERO;
+        }
         if (fromCurrencyOrRegion == null || fromCurrencyOrRegion.isEmpty()) {
             return amount;
         }
@@ -167,6 +177,14 @@ public final class ShopConfig {
             return convert(amount, fromCurrencyOrRegion, "USD");
         }
         return convert(amount, currencyCodeForRegion(fromCurrencyOrRegion), "USD");
+    }
+
+    /**
+     * Listing prices are stored in the seller's regional currency. Convert to USD
+     * for cart/order totals and Stripe (mixed-region carts).
+     */
+    public static BigDecimal listingPriceUsd(BigDecimal price, String sellerRegion) {
+        return convertToUsd(price, sellerRegion);
     }
 
     public static String formatUsdFee(BigDecimal usdAmount, Currency display, String suffix) {

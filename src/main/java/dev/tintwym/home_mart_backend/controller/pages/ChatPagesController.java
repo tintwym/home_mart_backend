@@ -13,7 +13,9 @@ import dev.tintwym.home_mart_backend.repository.ListingRepository;
 import dev.tintwym.home_mart_backend.repository.MessageRepository;
 import dev.tintwym.home_mart_backend.repository.UserRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
+import dev.tintwym.home_mart_backend.service.ChatTypingService;
 import dev.tintwym.home_mart_backend.service.InertiaService;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.utility.UlidService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,7 +25,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,13 +39,13 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 public class ChatPagesController extends PageControllerSupport {
 
-    private static final ConcurrentHashMap<String, TypingEntry> TYPING = new ConcurrentHashMap<>();
-
     private final FavoriteRepository favoriteRepository;
     private final ListingRepository listingRepository;
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final ConversationReadRepository conversationReadRepository;
+    private final ChatTypingService chatTypingService;
+    private final ListingSoldService listingSoldService;
 
     public ChatPagesController(
             InertiaService inertia,
@@ -53,13 +54,17 @@ public class ChatPagesController extends PageControllerSupport {
             ListingRepository listingRepository,
             ConversationRepository conversationRepository,
             MessageRepository messageRepository,
-            ConversationReadRepository conversationReadRepository) {
+            ConversationReadRepository conversationReadRepository,
+            ChatTypingService chatTypingService,
+            ListingSoldService listingSoldService) {
         super(inertia, userRepository);
         this.favoriteRepository = favoriteRepository;
         this.listingRepository = listingRepository;
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.conversationReadRepository = conversationReadRepository;
+        this.chatTypingService = chatTypingService;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping("/favorites")
@@ -74,7 +79,7 @@ public class ChatPagesController extends PageControllerSupport {
         List<String> ids = favs.stream().map(Favorite::getListingId).toList();
         List<Map<String, Object>> listings = ids.isEmpty()
                 ? List.of()
-                : listingRepository.findDetailedByIdIn(ids).stream().map(ApiJson::listingSummaryJson).toList();
+                : listingSoldService.toSummaryJsonList(listingRepository.findDetailedByIdIn(ids));
         return render(request, response, "favorites/index", Map.of("listings", listings));
     }
 
@@ -155,7 +160,51 @@ public class ChatPagesController extends PageControllerSupport {
         props.put("conversation", convMap);
         props.put("messages", messages);
         props.put("messages_has_more", hasMore);
+        props.put("poll_after", messages.isEmpty()
+                ? ApiJson.formatInstant(conversation.getCreatedAt() != null
+                        ? conversation.getCreatedAt()
+                        : Instant.EPOCH)
+                : messages.get(messages.size() - 1).get("created_at"));
         return render(request, response, "chat/show", props);
+    }
+
+    @GetMapping(value = "/chat/{id}/messages/older", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional(readOnly = true)
+    public ResponseEntity<?> messagesOlder(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @PathVariable String id,
+            @RequestParam String before) {
+        ResponseEntity<?> gate = requireLogin(request, response);
+        if (gate != null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Unauthenticated."));
+        }
+        User user = requireUser();
+        Conversation conversation = requireParticipant(id, user);
+        Instant beforeInstant;
+        try {
+            beforeInstant = Instant.parse(before);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid before timestamp."));
+        }
+        Listing listing = listingRepository.findById(conversation.getListingId()).orElseThrow();
+        String otherUserId = user.getId().equals(conversation.getBuyerId())
+                ? listing.getUserId()
+                : conversation.getBuyerId();
+        Instant otherReadAt = conversationReadRepository
+                .findByConversationIdAndUserId(conversation.getId(), otherUserId)
+                .map(ConversationRead::getLastReadAt)
+                .orElse(null);
+
+        List<Message> older = messageRepository.findOlderThan(conversation.getId(), beforeInstant);
+        boolean hasMore = older.size() > 50;
+        List<Message> page = hasMore ? older.subList(0, 50) : older;
+        page = new ArrayList<>(page);
+        page.sort(Comparator.comparing(Message::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
+        List<Map<String, Object>> list = page.stream()
+                .map(m -> messageMap(m, user.getId(), otherReadAt))
+                .toList();
+        return ResponseEntity.ok(Map.of("messages", list, "has_more", hasMore));
     }
 
     @PostMapping("/chat/{id}/messages")
@@ -188,14 +237,26 @@ public class ChatPagesController extends PageControllerSupport {
     @GetMapping(value = "/chat/{id}/messages/since", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly = true)
     public ResponseEntity<?> messagesSince(
+            HttpServletRequest request,
+            HttpServletResponse response,
             @PathVariable String id,
             @RequestParam(value = "after", required = false) String after) {
+        ResponseEntity<?> gate = requireLogin(request, response);
+        if (gate != null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Unauthenticated."));
+        }
         User user = requireUser();
         Conversation conversation = requireParticipant(id, user);
+        Instant afterInstant;
         if (after == null || after.isBlank()) {
-            return ResponseEntity.ok(Map.of("messages", List.of()));
+            afterInstant = Instant.EPOCH;
+        } else {
+            try {
+                afterInstant = Instant.parse(after);
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Invalid after timestamp."));
+            }
         }
-        Instant afterInstant = Instant.parse(after);
         Listing listing = listingRepository.findById(conversation.getListingId()).orElseThrow();
         String otherUserId = user.getId().equals(conversation.getBuyerId())
                 ? listing.getUserId()
@@ -206,35 +267,43 @@ public class ChatPagesController extends PageControllerSupport {
                 .orElse(null);
 
         List<Map<String, Object>> list = messageRepository
-                .findByConversationIdOrderByCreatedAtAsc(conversation.getId())
+                .findNewerThan(conversation.getId(), afterInstant)
                 .stream()
-                .filter(m -> m.getCreatedAt() != null && m.getCreatedAt().isAfter(afterInstant))
                 .map(m -> messageMap(m, user.getId(), otherReadAt))
                 .toList();
         return ResponseEntity.ok(Map.of("messages", list));
     }
 
     @PostMapping("/chat/{id}/typing")
-    public ResponseEntity<Void> typing(@PathVariable String id) {
+    public ResponseEntity<?> typing(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @PathVariable String id) {
+        ResponseEntity<?> gate = requireLogin(request, response);
+        if (gate != null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         User user = requireUser();
         requireParticipant(id, user);
-        TYPING.put(id + "." + user.getId(), new TypingEntry(user.getName(), System.currentTimeMillis() + 5000));
+        chatTypingService.setTyping(id, user.getId(), user.getName());
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping(value = "/chat/{id}/typing", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> typingStatus(@PathVariable String id) {
+    public ResponseEntity<?> typingStatus(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @PathVariable String id) {
+        ResponseEntity<?> gate = requireLogin(request, response);
+        if (gate != null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Unauthenticated."));
+        }
         User user = requireUser();
-        Conversation conversation = requireParticipant(id, user);
-        Listing listing = listingRepository.findById(conversation.getListingId()).orElseThrow();
-        String otherUserId = user.getId().equals(conversation.getBuyerId())
-                ? listing.getUserId()
-                : conversation.getBuyerId();
-        TypingEntry entry = TYPING.get(id + "." + otherUserId);
-        boolean typing = entry != null && entry.expiresAt() > System.currentTimeMillis();
+        requireParticipant(id, user);
+        ChatTypingService.TypingSnapshot snap = chatTypingService.otherTyping(id, user.getId());
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("typing", typing);
-        body.put("user_name", typing ? entry.name() : null);
+        body.put("typing", snap.typing());
+        body.put("user_name", snap.userName());
         return ResponseEntity.ok(body);
     }
 
@@ -312,8 +381,5 @@ public class ChatPagesController extends PageControllerSupport {
             m.put("status", null);
         }
         return m;
-    }
-
-    private record TypingEntry(String name, long expiresAt) {
     }
 }

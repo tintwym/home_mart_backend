@@ -4,6 +4,8 @@ import dev.tintwym.home_mart_backend.entity.LocalPaymentMethod;
 import dev.tintwym.home_mart_backend.entity.OrderEntity;
 import dev.tintwym.home_mart_backend.entity.OrderItem;
 import dev.tintwym.home_mart_backend.entity.User;
+import dev.tintwym.home_mart_backend.repository.CartItemRepository;
+import dev.tintwym.home_mart_backend.repository.FavoriteRepository;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
 import dev.tintwym.home_mart_backend.repository.LocalPaymentMethodRepository;
 import dev.tintwym.home_mart_backend.repository.OrderItemRepository;
@@ -14,6 +16,8 @@ import dev.tintwym.home_mart_backend.mapper.ApiJson;
 import dev.tintwym.home_mart_backend.service.AuthCookieService;
 import dev.tintwym.home_mart_backend.service.GeoRegionService;
 import dev.tintwym.home_mart_backend.service.InertiaService;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
+import dev.tintwym.home_mart_backend.service.OrderStatuses;
 import dev.tintwym.home_mart_backend.service.PasskeyService;
 import dev.tintwym.home_mart_backend.service.ShopConfig;
 import dev.tintwym.home_mart_backend.service.StripeService;
@@ -28,7 +32,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -53,8 +56,11 @@ public class SettingsPagesController extends PageControllerSupport {
     private final OrderItemRepository orderItemRepository;
     private final ListingRepository listingRepository;
     private final LocalPaymentMethodRepository localPaymentMethodRepository;
+    private final CartItemRepository cartItemRepository;
+    private final FavoriteRepository favoriteRepository;
     private final StripeService stripeService;
     private final GeoRegionService geoRegionService;
+    private final ListingSoldService listingSoldService;
 
     public SettingsPagesController(
             InertiaService inertia,
@@ -67,8 +73,11 @@ public class SettingsPagesController extends PageControllerSupport {
             OrderItemRepository orderItemRepository,
             ListingRepository listingRepository,
             LocalPaymentMethodRepository localPaymentMethodRepository,
+            CartItemRepository cartItemRepository,
+            FavoriteRepository favoriteRepository,
             StripeService stripeService,
-            GeoRegionService geoRegionService) {
+            GeoRegionService geoRegionService,
+            ListingSoldService listingSoldService) {
         super(inertia, userRepository);
         this.passwordEncoder = passwordEncoder;
         this.authCookieService = authCookieService;
@@ -78,8 +87,11 @@ public class SettingsPagesController extends PageControllerSupport {
         this.orderItemRepository = orderItemRepository;
         this.listingRepository = listingRepository;
         this.localPaymentMethodRepository = localPaymentMethodRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.favoriteRepository = favoriteRepository;
         this.stripeService = stripeService;
         this.geoRegionService = geoRegionService;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping("/settings")
@@ -151,11 +163,11 @@ public class SettingsPagesController extends PageControllerSupport {
         if (address != null) {
             user.setAddress(address);
         }
-        if (sellerType != null && !sellerType.isBlank()) {
+        if (sellerType != null && ("individual".equals(sellerType) || "business".equals(sellerType))) {
             user.setSellerType(sellerType);
         }
-        if (region != null && ShopConfig.REGIONS.contains(region)) {
-            user.setRegion(region);
+        if (region != null && ShopConfig.REGIONS.contains(region.trim().toUpperCase())) {
+            user.setRegion(region.trim().toUpperCase());
         }
         userRepository.save(user);
         return redirect(request, "/settings/profile");
@@ -174,6 +186,13 @@ public class SettingsPagesController extends PageControllerSupport {
         User user = requireUser();
         if (password == null || !passwordEncoder.matches(password, user.getPassword())) {
             return backWithError(request, response, "The provided password was incorrect.");
+        }
+        String userId = user.getId();
+        cartItemRepository.deleteByUserId(userId);
+        favoriteRepository.deleteByUserId(userId);
+        localPaymentMethodRepository.deleteByUserId(userId);
+        for (var listing : listingRepository.findByUserId(userId)) {
+            listingRepository.delete(listing);
         }
         authCookieService.clearTokenCookie(response);
         userRepository.delete(user);
@@ -228,7 +247,8 @@ public class SettingsPagesController extends PageControllerSupport {
             return gate;
         }
         User user = requireUser();
-        List<OrderEntity> orders = orderRepository.findByUserIdAndStatusIn(user.getId(), Set.of("paid", "completed"));
+        List<OrderEntity> orders = orderRepository.findByUserIdAndStatusIn(
+                user.getId(), OrderStatuses.BUYER_VISIBLE);
         List<Map<String, Object>> orderMaps = new ArrayList<>();
         for (OrderEntity order : orders) {
             Map<String, Object> om = new LinkedHashMap<>();
@@ -245,7 +265,7 @@ public class SettingsPagesController extends PageControllerSupport {
                 im.put("quantity", oi.getQuantity());
                 im.put("price", oi.getPrice());
                 listingRepository.findDetailedById(oi.getListingId())
-                        .ifPresent(l -> im.put("listing", ApiJson.listingSummaryJson(l)));
+                        .ifPresent(l -> im.put("listing", listingSoldService.toSummaryJson(l)));
                 items.add(im);
             }
             om.put("items", items);
@@ -276,12 +296,13 @@ public class SettingsPagesController extends PageControllerSupport {
         }
         User user = requireUser();
         String region = geoRegionService.detect(request);
-        boolean isMyanmar = "MM".equals(region);
+        boolean isC2cRegion = "MM".equals(region) || "VN".equals(region);
         List<Map<String, Object>> paymentMethods = new ArrayList<>();
         List<Map<String, Object>> localPaymentMethods = new ArrayList<>();
         String stripeKey = null;
 
-        if (!isMyanmar && stripeService.isConfigured()) {
+        // MM/VN checkout is peer-to-peer (pay seller in chat) — no platform wallet / Stripe vault.
+        if (!isC2cRegion && stripeService.isConfigured()) {
             stripeKey = stripeService.getPublishableKey();
             try {
                 Customer customer = stripeService.ensureCustomer(user);
@@ -304,15 +325,12 @@ public class SettingsPagesController extends PageControllerSupport {
             } catch (Exception ignored) {
                 // Stripe unavailable
             }
-        } else if (isMyanmar) {
-            localPaymentMethods = localPaymentMethodRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
-                    .stream()
-                    .map(this::localPmJson)
-                    .toList();
         }
 
         Map<String, Object> props = new LinkedHashMap<>();
         props.put("region", region);
+        props.put("c2cCheckout", isC2cRegion);
+        props.put("testMode", true);
         props.put("paymentMethods", paymentMethods);
         props.put("localPaymentMethods", localPaymentMethods);
         props.put("stripePublishableKey", stripeKey);
@@ -404,7 +422,15 @@ public class SettingsPagesController extends PageControllerSupport {
             return gate;
         }
         try {
-            PaymentMethod.retrieve(paymentMethodId).detach();
+            User user = requireUser();
+            PaymentMethod pm = PaymentMethod.retrieve(paymentMethodId);
+            if (user.getStripeCustomerId() == null
+                    || pm.getCustomer() == null
+                    || !user.getStripeCustomerId().equals(pm.getCustomer())) {
+                return redirectWithError(request, response, "/settings/payment",
+                        "Payment method not found.");
+            }
+            pm.detach();
             return redirectWithStatus(request, response, "/settings/payment", "Payment method removed.");
         } catch (Exception e) {
             return redirectWithError(request, response, "/settings/payment", "Could not remove payment method.");
@@ -467,10 +493,10 @@ public class SettingsPagesController extends PageControllerSupport {
         props.put("listingCount", listingCount);
         props.put("maxListingSlots", maxSlots);
         props.put("slotPrice", ShopConfig.SLOT_PRICE);
-        props.put("slotPriceLabel", currency.symbol() + ShopConfig.SLOT_PRICE + " per slot");
+        props.put("slotPriceLabel", ShopConfig.formatUsdFee(ShopConfig.SLOT_PRICE, currency, "per slot"));
         props.put("trendPrice", ShopConfig.TREND_PRICE);
-        props.put("trendPriceLabel", currency.symbol() + ShopConfig.TREND_PRICE
-                + " for " + ShopConfig.TREND_DURATION_DAYS + " days");
+        props.put("trendPriceLabel", ShopConfig.formatUsdFee(
+                ShopConfig.TREND_PRICE, currency, "for " + ShopConfig.TREND_DURATION_DAYS + " days"));
         props.put("trendDurationDays", ShopConfig.TREND_DURATION_DAYS);
         return render(request, response, "upgrades/index", props);
     }
@@ -484,15 +510,5 @@ public class SettingsPagesController extends PageControllerSupport {
         }
         return redirectWithError(request, response, "/upgrades",
                 "Listing slot purchases require payment configuration.");
-    }
-
-    private Map<String, Object> localPmJson(LocalPaymentMethod pm) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", pm.getId());
-        m.put("type", pm.getType());
-        m.put("type_label", ShopConfig.localPaymentTypeLabel(pm.getType()));
-        m.put("identifier", pm.getIdentifier());
-        m.put("is_default", Boolean.TRUE.equals(pm.getIsDefault()));
-        return m;
     }
 }

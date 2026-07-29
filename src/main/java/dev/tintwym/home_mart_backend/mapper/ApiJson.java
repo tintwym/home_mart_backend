@@ -72,6 +72,10 @@ public final class ApiJson {
     }
 
     public static Map<String, Object> listingSummaryJson(Listing listing) {
+        return listingSummaryJson(listing, false);
+    }
+
+    public static Map<String, Object> listingSummaryJson(Listing listing, boolean isSold) {
         if (listing == null) {
             return null;
         }
@@ -89,6 +93,7 @@ public final class ApiJson {
         map.put("views_count", listing.getViewsCount() == null ? 0 : listing.getViewsCount());
         map.put("trending_until", formatInstant(listing.getTrendingUntil()));
         map.put("is_trending", listing.isTrending());
+        map.put("is_sold", isSold);
         map.put("created_at", formatInstant(listing.getCreatedAt()));
         map.put("updated_at", formatInstant(listing.getUpdatedAt()));
 

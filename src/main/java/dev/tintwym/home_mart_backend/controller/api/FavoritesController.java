@@ -4,7 +4,7 @@ import dev.tintwym.home_mart_backend.entity.Favorite;
 import dev.tintwym.home_mart_backend.entity.Listing;
 import dev.tintwym.home_mart_backend.repository.FavoriteRepository;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
-import dev.tintwym.home_mart_backend.mapper.ApiJson;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
 import dev.tintwym.home_mart_backend.utility.AuthSupport;
 import java.util.ArrayList;
@@ -25,23 +25,26 @@ public class FavoritesController {
 
     private final FavoriteRepository favoriteRepository;
     private final ListingRepository listingRepository;
+    private final ListingSoldService listingSoldService;
 
-    public FavoritesController(FavoriteRepository favoriteRepository, ListingRepository listingRepository) {
+    public FavoritesController(
+            FavoriteRepository favoriteRepository,
+            ListingRepository listingRepository,
+            ListingSoldService listingSoldService) {
         this.favoriteRepository = favoriteRepository;
         this.listingRepository = listingRepository;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping("/favorites")
     @Transactional(readOnly = true)
     public ResponseEntity<?> index() {
         String userId = AuthSupport.currentUserId();
-        List<Map<String, Object>> data = new ArrayList<>();
+        List<Listing> listings = new ArrayList<>();
         for (Favorite favorite : favoriteRepository.findByUserId(userId)) {
-            listingRepository
-                    .findByIdWithRelations(favorite.getListingId())
-                    .ifPresent(listing -> data.add(ApiJson.listingSummaryJson(listing)));
+            listingRepository.findByIdWithRelations(favorite.getListingId()).ifPresent(listings::add);
         }
-        return ResponseEntity.ok(Map.of("data", data));
+        return ResponseEntity.ok(Map.of("data", listingSoldService.toSummaryJsonList(listings)));
     }
 
     @PostMapping("/listings/{listingId}/favorite")

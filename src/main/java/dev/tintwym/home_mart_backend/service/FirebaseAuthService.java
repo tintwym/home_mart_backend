@@ -237,7 +237,10 @@ public class FirebaseAuthService {
         user.setPassword(passwordEncoder.encode(randomUnusablePassword()));
         user.setSellerType("individual");
         if (region != null && !region.isBlank()) {
-            user.setRegion(region.trim().toUpperCase());
+            String normalized = region.trim().toUpperCase();
+            if (ShopConfig.REGIONS.contains(normalized)) {
+                user.setRegion(normalized);
+            }
         }
         touchVerified(user, identity);
         return userRepository.save(user);

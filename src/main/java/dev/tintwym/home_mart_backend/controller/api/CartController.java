@@ -4,8 +4,8 @@ import dev.tintwym.home_mart_backend.entity.CartItem;
 import dev.tintwym.home_mart_backend.entity.Listing;
 import dev.tintwym.home_mart_backend.repository.CartItemRepository;
 import dev.tintwym.home_mart_backend.repository.ListingRepository;
-import dev.tintwym.home_mart_backend.repository.OrderItemRepository;
 import dev.tintwym.home_mart_backend.mapper.ApiJson;
+import dev.tintwym.home_mart_backend.service.ListingSoldService;
 import dev.tintwym.home_mart_backend.utility.UlidService;
 import dev.tintwym.home_mart_backend.utility.ApiResponses;
 import dev.tintwym.home_mart_backend.utility.AuthSupport;
@@ -28,15 +28,15 @@ public class CartController {
 
     private final CartItemRepository cartItemRepository;
     private final ListingRepository listingRepository;
-    private final OrderItemRepository orderItemRepository;
+    private final ListingSoldService listingSoldService;
 
     public CartController(
             CartItemRepository cartItemRepository,
             ListingRepository listingRepository,
-            OrderItemRepository orderItemRepository) {
+            ListingSoldService listingSoldService) {
         this.cartItemRepository = cartItemRepository;
         this.listingRepository = listingRepository;
-        this.orderItemRepository = orderItemRepository;
+        this.listingSoldService = listingSoldService;
     }
 
     @GetMapping("/cart")
@@ -51,7 +51,7 @@ public class CartController {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", item.getId());
             row.put("listing_id", item.getListingId());
-            row.put("listing", ApiJson.listingSummaryJson(listing));
+            row.put("listing", listingSoldService.toSummaryJson(listing));
             row.put("created_at", ApiJson.formatInstant(item.getCreatedAt()));
             items.add(row);
         }
@@ -69,7 +69,7 @@ public class CartController {
         if (userId.equals(listing.getUserId())) {
             return ApiResponses.unprocessable("You cannot add your own listing to the cart.");
         }
-        if (orderItemRepository.existsByListingIdAndOrder_StatusIn(listingId, List.of("paid", "completed"))) {
+        if (listingSoldService.isSold(listingId)) {
             return ApiResponses.unprocessable("This listing has already been sold.");
         }
         if (!cartItemRepository.existsByUserIdAndListingId(userId, listingId)) {
