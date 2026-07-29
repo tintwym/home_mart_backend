@@ -28,9 +28,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -214,8 +216,16 @@ public class ListingPagesController extends PageControllerSupport {
                 .limit(6)
                 .toList();
         List<String> relatedIds = related.stream().map(Listing::getId).toList();
+        Map<String, Listing> relatedById = new HashMap<>();
+        for (Listing detailed : listingRepository.findDetailedByIdIn(relatedIds)) {
+            relatedById.put(detailed.getId(), detailed);
+        }
+        List<Listing> relatedOrdered = relatedIds.stream()
+                .map(relatedById::get)
+                .filter(Objects::nonNull)
+                .toList();
         List<Map<String, Object>> relatedJson =
-                listingSoldService.toSummaryJsonList(listingRepository.findDetailedByIdIn(relatedIds));
+                listingSoldService.toSummaryJsonList(relatedOrdered);
 
         ShopConfig.Currency currency = currencyFor(request);
         Map<String, Object> listingMap = listingSoldService.toSummaryJson(listing);
@@ -466,6 +476,9 @@ public class ListingPagesController extends PageControllerSupport {
         User user = requireUser();
         if (!listing.getUserId().equals(user.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        if (listingSoldService.isSold(id)) {
+            return redirectWithError(request, response, "/listings/" + id, "This listing has already been sold.");
         }
         if (!stripeService.isConfigured()) {
             return redirectWithError(request, response, "/listings/" + id, "Payment is not configured. Please try again later.");
