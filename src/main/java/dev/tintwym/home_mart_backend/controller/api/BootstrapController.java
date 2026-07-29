@@ -145,7 +145,7 @@ public class BootstrapController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("region", region);
         body.put("currency", currency.code());
-        body.put("locale", "en");
+        body.put("locale", ShopConfig.REGION_LOCALES.getOrDefault(region, "en"));
         return ResponseEntity.ok(body);
     }
 
@@ -177,6 +177,9 @@ public class BootstrapController {
     private String resolveLocale(String queryLocale, String region) {
         if (queryLocale != null && ShopConfig.SUPPORTED_LOCALES.contains(queryLocale.trim().toLowerCase())) {
             return queryLocale.trim().toLowerCase();
+        }
+        if (region != null && ShopConfig.REGION_LOCALES.containsKey(region)) {
+            return ShopConfig.REGION_LOCALES.get(region);
         }
         return "en";
     }

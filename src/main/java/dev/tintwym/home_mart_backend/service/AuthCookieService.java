@@ -145,8 +145,14 @@ public class AuthCookieService {
 
     public void setShopRegion(HttpServletResponse response, String region) {
         setPreferenceCookie(response, "shop_region", region, 365 * 24 * 60 * 60);
-        // Region switch resets display currency to that region's default (MM→MMK, VN→VND).
-        clearShopCurrency(response);
+        // Region drives display currency (MM→MMK, VN→VND, SG→SGD, US→USD).
+        String currencyCode = ShopConfig.currencyCodeForRegion(region);
+        setPreferenceCookie(response, "shop_currency", currencyCode, 365 * 24 * 60 * 60);
+        setPreferenceCookie(response, "currency_manual", "", 0);
+        // Region drives UI language (MM→my, VN→vi, SG/US→en).
+        String locale = ShopConfig.REGION_LOCALES.getOrDefault(region, "en");
+        setPreferenceCookie(response, "locale", locale, 365 * 24 * 60 * 60);
+        setPreferenceCookie(response, "locale_manual", "", 0);
     }
 
     public void setShopCurrency(HttpServletResponse response, String currency) {

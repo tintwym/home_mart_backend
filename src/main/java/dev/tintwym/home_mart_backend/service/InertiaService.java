@@ -363,10 +363,13 @@ public class InertiaService {
 
     private String resolveLocale(HttpServletRequest request) {
         String cookie = cookieValue(request, "locale");
-        if (cookie != null && ShopConfig.SUPPORTED_LOCALES.contains(cookie)) {
+        if (cookie != null && !cookie.isBlank() && ShopConfig.SUPPORTED_LOCALES.contains(cookie)) {
             return cookie;
         }
-        // Default UI language is English; region no longer forces a locale.
+        String region = geoRegionService.detect(request);
+        if (region != null && ShopConfig.REGION_LOCALES.containsKey(region)) {
+            return ShopConfig.REGION_LOCALES.get(region);
+        }
         return "en";
     }
 
