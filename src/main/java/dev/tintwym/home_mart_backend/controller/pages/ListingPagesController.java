@@ -453,11 +453,11 @@ public class ListingPagesController extends PageControllerSupport {
                         c.setBuyerId(user.getId());
                         return conversationRepository.save(c);
                     });
-            return redirect(request, "/chat/" + conversation.getId());
+            return redirect(request, "/inbox/" + conversation.getId());
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             Conversation existing = conversationRepository.findByListingIdAndBuyerId(id, user.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT));
-            return redirect(request, "/chat/" + existing.getId());
+            return redirect(request, "/inbox/" + existing.getId());
         }
     }
 

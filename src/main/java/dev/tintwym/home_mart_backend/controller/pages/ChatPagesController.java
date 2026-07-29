@@ -83,7 +83,7 @@ public class ChatPagesController extends PageControllerSupport {
         return render(request, response, "favorites/index", Map.of("listings", listings));
     }
 
-    @GetMapping("/chat")
+    @GetMapping({"/chat", "/inbox"})
     @Transactional(readOnly = true)
     public ResponseEntity<?> chatIndex(HttpServletRequest request, HttpServletResponse response) {
         ResponseEntity<?> gate = requireLogin(request, response);
@@ -94,7 +94,7 @@ public class ChatPagesController extends PageControllerSupport {
                 Map.of("conversations", conversationMaps(requireUser().getId(), 30)));
     }
 
-    @GetMapping("/chat/{id}")
+    @GetMapping({"/chat/{id}", "/inbox/{id}"})
     @Transactional
     public ResponseEntity<?> chatShow(
             HttpServletRequest request,
@@ -168,7 +168,7 @@ public class ChatPagesController extends PageControllerSupport {
         return render(request, response, "chat/show", props);
     }
 
-    @GetMapping(value = "/chat/{id}/messages/older", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = {"/chat/{id}/messages/older", "/inbox/{id}/messages/older"}, produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly = true)
     public ResponseEntity<?> messagesOlder(
             HttpServletRequest request,
@@ -207,7 +207,7 @@ public class ChatPagesController extends PageControllerSupport {
         return ResponseEntity.ok(Map.of("messages", list, "has_more", hasMore));
     }
 
-    @PostMapping("/chat/{id}/messages")
+    @PostMapping({"/chat/{id}/messages", "/inbox/{id}/messages"})
     @Transactional
     public ResponseEntity<?> sendMessage(
             HttpServletRequest request,
@@ -231,10 +231,10 @@ public class ChatPagesController extends PageControllerSupport {
         messageRepository.save(msg);
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
-        return inertia.back(request, response, "/chat/" + id);
+        return inertia.back(request, response, "/inbox/" + id);
     }
 
-    @GetMapping(value = "/chat/{id}/messages/since", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = {"/chat/{id}/messages/since", "/inbox/{id}/messages/since"}, produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly = true)
     public ResponseEntity<?> messagesSince(
             HttpServletRequest request,
@@ -274,7 +274,7 @@ public class ChatPagesController extends PageControllerSupport {
         return ResponseEntity.ok(Map.of("messages", list));
     }
 
-    @PostMapping("/chat/{id}/typing")
+    @PostMapping({"/chat/{id}/typing", "/inbox/{id}/typing"})
     public ResponseEntity<?> typing(
             HttpServletRequest request,
             HttpServletResponse response,
@@ -289,7 +289,7 @@ public class ChatPagesController extends PageControllerSupport {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping(value = "/chat/{id}/typing", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = {"/chat/{id}/typing", "/inbox/{id}/typing"}, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> typingStatus(
             HttpServletRequest request,
             HttpServletResponse response,
