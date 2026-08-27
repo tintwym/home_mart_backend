@@ -41,6 +41,13 @@ public class User {
     @Column(name = "seller_type", length = 20)
     private String sellerType = "individual";
 
+    /** user | admin */
+    @Column(length = 20)
+    private String role = "user";
+
+    @Column(name = "banned_at")
+    private Instant bannedAt;
+
     @Column(name = "extra_listing_slots")
     private Integer extraListingSlots = 0;
 
@@ -87,6 +94,17 @@ public class User {
         if (extraListingSlots == null) {
             extraListingSlots = 0;
         }
+        if (role == null || role.isBlank()) {
+            role = "user";
+        }
+    }
+
+    public boolean isAdmin() {
+        return "admin".equalsIgnoreCase(role);
+    }
+
+    public boolean isBanned() {
+        return bannedAt != null;
     }
 
     @PreUpdate
@@ -170,6 +188,22 @@ public class User {
 
     public void setSellerType(String sellerType) {
         this.sellerType = sellerType;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public Instant getBannedAt() {
+        return bannedAt;
+    }
+
+    public void setBannedAt(Instant bannedAt) {
+        this.bannedAt = bannedAt;
     }
 
     public Integer getExtraListingSlots() {

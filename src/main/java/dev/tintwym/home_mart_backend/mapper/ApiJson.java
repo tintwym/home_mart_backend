@@ -32,6 +32,8 @@ public final class ApiJson {
         map.put("address", user.getAddress());
         map.put("region", user.getRegion());
         map.put("seller_type", user.getSellerType());
+        map.put("role", user.getRole() == null ? "user" : user.getRole());
+        map.put("banned_at", formatInstant(user.getBannedAt()));
         map.put("extra_listing_slots", user.getExtraListingSlots() == null ? 0 : user.getExtraListingSlots());
         map.put("email_verified_at", formatInstant(user.getEmailVerifiedAt()));
         map.put("two_factor_confirmed_at", formatInstant(user.getTwoFactorConfirmedAt()));
@@ -50,6 +52,8 @@ public final class ApiJson {
         map.put("name", user.getName());
         map.put("email", user.getEmail());
         map.put("seller_type", user.getSellerType());
+        map.put("role", user.getRole() == null ? "user" : user.getRole());
+        map.put("banned_at", formatInstant(user.getBannedAt()));
         map.put("extra_listing_slots", user.getExtraListingSlots() == null ? 0 : user.getExtraListingSlots());
         map.put("region", user.getRegion());
         map.put("phone", user.getPhone());

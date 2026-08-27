@@ -86,6 +86,7 @@ public class SecurityConfig {
                                 "/api/verify-email/**",
                                 "/api/passkeys/**")
                         .permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())
                 .addFilterBefore(mapiRewriteFilter, SecurityContextHolderFilter.class)

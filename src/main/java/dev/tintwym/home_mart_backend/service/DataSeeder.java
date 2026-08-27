@@ -1,5 +1,6 @@
 package dev.tintwym.home_mart_backend.service;
 
+import dev.tintwym.home_mart_backend.config.AppProperties;
 import dev.tintwym.home_mart_backend.entity.Category;
 import dev.tintwym.home_mart_backend.entity.Listing;
 import dev.tintwym.home_mart_backend.entity.Subcategory;
@@ -211,25 +212,61 @@ public class DataSeeder {
     private final UserRepository userRepository;
     private final ListingRepository listingRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AppProperties appProperties;
 
     public DataSeeder(
             CategoryRepository categoryRepository,
             SubcategoryRepository subcategoryRepository,
             UserRepository userRepository,
             ListingRepository listingRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            AppProperties appProperties) {
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.userRepository = userRepository;
         this.listingRepository = listingRepository;
         this.passwordEncoder = passwordEncoder;
+        this.appProperties = appProperties;
     }
 
     @Transactional
     public void seed() {
+        seedAdmin();
         seedCategories();
         seedListings();
         log.info("Data seed complete");
+    }
+
+    private void seedAdmin() {
+        AppProperties.Admin cfg = appProperties.getAdmin();
+        String email = cfg.getEmail() == null ? "" : cfg.getEmail().trim().toLowerCase();
+        if (email.isBlank()) {
+            return;
+        }
+        User admin = userRepository.findByEmail(email).orElse(null);
+        if (admin == null) {
+            admin = new User();
+            admin.setId(UlidService.newUlid());
+            admin.setName(cfg.getName() == null || cfg.getName().isBlank() ? "Admin" : cfg.getName());
+            admin.setEmail(email);
+            admin.setPassword(passwordEncoder.encode(
+                    cfg.getPassword() == null || cfg.getPassword().isBlank()
+                            ? "admin12345"
+                            : cfg.getPassword()));
+            admin.setAuthProvider("password");
+            admin.setSellerType("business");
+            admin.setRole("admin");
+            admin.setRegion("US");
+            admin.setEmailVerifiedAt(java.time.Instant.now());
+            userRepository.save(admin);
+            log.info("Seeded admin user {}", email);
+            return;
+        }
+        if (!"admin".equalsIgnoreCase(admin.getRole())) {
+            admin.setRole("admin");
+            userRepository.save(admin);
+            log.info("Promoted {} to admin", email);
+        }
     }
 
     private void seedCategories() {
@@ -277,6 +314,7 @@ public class DataSeeder {
                     UUID.randomUUID().toString().replace("-", "")
                             + UUID.randomUUID().toString().replace("-", "")));
             store.setSellerType("business");
+            store.setRole("user");
             store.setRegion("US");
             store = userRepository.save(store);
         }

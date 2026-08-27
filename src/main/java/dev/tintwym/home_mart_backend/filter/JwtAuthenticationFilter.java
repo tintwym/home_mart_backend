@@ -59,7 +59,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Reject tokens for deleted users instead of synthesizing a principal.
                 return;
             }
-            UserPrincipal principal = new UserPrincipal(userOpt.get());
+            User user = userOpt.get();
+            if (user.isBanned()) {
+                return;
+            }
+            UserPrincipal principal = new UserPrincipal(user);
 
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                     principal, null, principal.getAuthorities());

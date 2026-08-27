@@ -63,6 +63,7 @@ public class AuthController {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setAuthProvider("password");
+        user.setRole("user");
         if (request.sellerType() != null
                 && (request.sellerType().equals("individual") || request.sellerType().equals("business"))) {
             user.setSellerType(request.sellerType());
@@ -89,6 +90,9 @@ public class AuthController {
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
             return ApiResponses.unauthorized("Invalid credentials");
+        }
+        if (user.isBanned()) {
+            return ApiResponses.forbidden("Account is banned");
         }
         if (user.hasConfirmedTwoFactor()) {
             return ApiResponses.unprocessable(

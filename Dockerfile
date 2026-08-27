@@ -9,7 +9,7 @@ RUN mvn -q -B -DskipTests dependency:go-offline
 
 COPY src ./src
 RUN mvn -q -B -DskipTests package \
-    && cp target/home_mart_backend-0.0.1-SNAPSHOT.jar /app/app.jar
+    && cp target/backend-0.0.1-SNAPSHOT.jar /app/app.jar
 
 FROM eclipse-temurin:21.0.11_10-jre-jammy
 WORKDIR /app

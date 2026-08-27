@@ -9,6 +9,7 @@ public class AppProperties {
     private String url = "http://localhost:5199";
     private String frontendUrl = "http://localhost:3000";
     private final Seed seed = new Seed();
+    private final Admin admin = new Admin();
 
     public String getName() {
         return name;
@@ -38,6 +39,10 @@ public class AppProperties {
         return seed;
     }
 
+    public Admin getAdmin() {
+        return admin;
+    }
+
     public static class Seed {
         private boolean onStartup = true;
 
@@ -47,6 +52,36 @@ public class AppProperties {
 
         public void setOnStartup(boolean onStartup) {
             this.onStartup = onStartup;
+        }
+    }
+
+    public static class Admin {
+        private String email = "admin@homemart.com";
+        private String password = "admin12345";
+        private String name = "HomeMart Admin";
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
         }
     }
 }

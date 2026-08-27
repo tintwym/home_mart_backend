@@ -3,9 +3,10 @@
 #
 # After first deploy:
 # 1. Set App_Url to https://<this-service>.onrender.com
-# 2. Set App_FrontendUrl + Cors_AllowedOrigins to your Vercel URL
-# 3. Point vercel.json rewrites at this service
-# 4. Add FIREBASE_PROJECT_ID (and optional Stripe / Cloudinary / Resend)
+# 2. Set App_FrontendUrl to your Vercel storefront URL
+# 3. Set Cors_AllowedOrigins to storefront + admin Vercel URLs (comma-separated)
+# 4. On Vercel (frontend + admin): set BACKEND_URL to this Render URL (same-origin /api proxy)
+# 5. Add FIREBASE_PROJECT_ID (and optional Stripe / Cloudinary / Resend)
 
 databases:
   - name: homemart-db
@@ -54,6 +55,10 @@ services:
       - key: App_FrontendUrl
         sync: false
       - key: Cors_AllowedOrigins
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
