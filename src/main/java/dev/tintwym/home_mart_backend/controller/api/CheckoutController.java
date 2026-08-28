@@ -1,5 +1,6 @@
 package dev.tintwym.home_mart_backend.controller.api;
 
+import dev.tintwym.home_mart_backend.config.ShopProperties;
 import dev.tintwym.home_mart_backend.dto.ApiRequests.LocalPayRequest;
 import dev.tintwym.home_mart_backend.entity.CartItem;
 import dev.tintwym.home_mart_backend.entity.Listing;
@@ -12,6 +13,7 @@ import dev.tintwym.home_mart_backend.repository.OrderItemRepository;
 import dev.tintwym.home_mart_backend.repository.OrderRepository;
 import dev.tintwym.home_mart_backend.service.GeoRegionService;
 import dev.tintwym.home_mart_backend.service.ListingSoldService;
+import dev.tintwym.home_mart_backend.service.MmqrCheckoutService;
 import dev.tintwym.home_mart_backend.service.OrderFulfillmentService;
 import dev.tintwym.home_mart_backend.service.OrderStatuses;
 import dev.tintwym.home_mart_backend.service.ShopConfig;
@@ -48,6 +50,8 @@ public class CheckoutController {
     private final GeoRegionService geoRegionService;
     private final ListingSoldService listingSoldService;
     private final OrderFulfillmentService orderFulfillmentService;
+    private final MmqrCheckoutService mmqrCheckoutService;
+    private final ShopProperties shopProperties;
 
     public CheckoutController(
             CartItemRepository cartItemRepository,
@@ -56,7 +60,9 @@ public class CheckoutController {
             OrderItemRepository orderItemRepository,
             GeoRegionService geoRegionService,
             ListingSoldService listingSoldService,
-            OrderFulfillmentService orderFulfillmentService) {
+            OrderFulfillmentService orderFulfillmentService,
+            MmqrCheckoutService mmqrCheckoutService,
+            ShopProperties shopProperties) {
         this.cartItemRepository = cartItemRepository;
         this.listingRepository = listingRepository;
         this.orderRepository = orderRepository;
@@ -64,6 +70,8 @@ public class CheckoutController {
         this.geoRegionService = geoRegionService;
         this.listingSoldService = listingSoldService;
         this.orderFulfillmentService = orderFulfillmentService;
+        this.mmqrCheckoutService = mmqrCheckoutService;
+        this.shopProperties = shopProperties;
     }
 
     @PostMapping("/checkout")
@@ -114,7 +122,7 @@ public class CheckoutController {
         List<String> availableMethods;
         if ("MM".equals(flowRegion)) {
             paymentFlow = "c2c_mm";
-            availableMethods = List.of("meetup");
+            availableMethods = ShopConfig.MYANMAR_PAYMENT_METHODS;
         } else if ("VN".equals(flowRegion)) {
             paymentFlow = "c2c_vn";
             availableMethods = List.of("meetup");
@@ -149,7 +157,7 @@ public class CheckoutController {
         body.put("flow_region", flowRegion);
         if ("c2c_mm".equals(paymentFlow) || "c2c_vn".equals(paymentFlow)) {
             body.put("flow", "c2c");
-            body.put("default_method", "meetup");
+            body.put("default_method", "c2c_mm".equals(paymentFlow) ? "mmqr" : "vnqr");
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
@@ -176,6 +184,40 @@ public class CheckoutController {
     @Transactional
     public ResponseEntity<?> arrangeVietnam(@RequestBody LocalPayRequest request) {
         return arrangeC2c(request, "VN");
+    }
+
+    @GetMapping("/checkout/mm")
+    @Transactional(readOnly = true)
+    public ResponseEntity<?> myanmarCheckout(@RequestParam String orderId) {
+        String userId = AuthSupport.currentUserId();
+        OrderEntity order = orderRepository.findById(orderId).orElse(null);
+        if (order == null
+                || !userId.equals(order.getUserId())
+                || !(OrderStatuses.PENDING.equals(order.getStatus())
+                        || OrderStatuses.RESERVED.equals(order.getStatus()))) {
+            return ApiResponses.notFound("Order not found.");
+        }
+        if (!"MM".equals(resolveOrderRegion(order))) {
+            return ApiResponses.unprocessable("This order is not eligible for Myanmar checkout.");
+        }
+
+        Map<String, Object> orderMap = orderJson(order);
+        orderMap.put(
+                "total_mmk",
+                ShopConfig.convertFromUsd(
+                                order.getTotal() == null ? BigDecimal.ZERO : order.getTotal(),
+                                "MMK")
+                        .setScale(0, java.math.RoundingMode.HALF_UP));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("order", orderMap);
+        body.put("mmqr", mmqrCheckoutService.buildMmqrForOrder(order));
+        body.put("payment_methods", ShopConfig.MYANMAR_PAYMENT_METHODS);
+        body.put("default_method", "mmqr");
+        body.put("merchant", merchantJson());
+        body.put("region", "MM");
+        body.put("test_mode", true);
+        return ResponseEntity.ok(body);
     }
 
     @PostMapping("/orders/{id}/complete")
@@ -227,8 +269,14 @@ public class CheckoutController {
         if (orderFulfillmentService.hasSoldConflictExcluding(order.getId())) {
             return ApiResponses.unprocessable("One or more items were already reserved or sold.");
         }
+        String method = request.method() == null || request.method().isBlank()
+                ? "meetup"
+                : request.method().trim();
+        String reference = request.identifier() == null || request.identifier().isBlank()
+                ? method + "_test"
+                : request.identifier().trim();
         order.setPaymentGateway("c2c");
-        order.setPaymentReference("meetup_test");
+        order.setPaymentReference(reference);
         order.setStatus(OrderStatuses.ARRANGED);
         orderRepository.save(order);
         cartItemRepository.deleteByUserId(userId);
@@ -298,6 +346,15 @@ public class CheckoutController {
             rows.add(row);
         }
         map.put("items", rows);
+        return map;
+    }
+
+    private Map<String, Object> merchantJson() {
+        ShopProperties.Mmqr mmqr = shopProperties.getMmqr();
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("name", mmqr.getMerchantName());
+        map.put("id", mmqr.getMerchantId());
+        map.put("city", mmqr.getMerchantCity());
         return map;
     }
 }
