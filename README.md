@@ -74,7 +74,9 @@ All `/api/admin/**` require JWT with `ROLE_ADMIN`.
 
 ## Render deploy
 
-See [`render.yaml`](./render.yaml). Set at least:
+See [`render.yaml`](./render.yaml). The web service uses **Starter** (`plan: starter`) so it does **not** spin down on idle (Free would sleep after ~15 minutes). If the service already exists on Free, change the plan in the Render Dashboard (or re-apply the Blueprint) — editing YAML alone does not always upgrade a live service.
+
+Set at least:
 
 - `App_Url`, `App_FrontendUrl`, `Cors_AllowedOrigins` (include storefront + admin)
 - `JWT_KEY`, `DATABASE_URL`

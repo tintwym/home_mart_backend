@@ -672,5 +672,15 @@
     "listing.category_general": "一般",
     "listing.trust_c2c_safety": "出品者とチャットし、公共の場所で安全に受け渡し",
     "listing.trust_inspect_before_pay": "支払い前に商品を確認してください",
-    "listing.edit_your_review": "レビューを編集"
+    "listing.edit_your_review": "レビューを編集",
+    "category.bookshelves": "本棚",
+    "category.coffee-tables": "コーヒーテーブル",
+    "category.dining-tables": "ダイニングテーブル",
+    "category.office-desks": "オフィスデスク",
+    "category.outdoor-seating": "アウトドア用チェア",
+    "category.sofas-sectionals": "ソファ・セクショナル",
+    "payment.c2c_heading": "出品者へ直接支払い（C2C）",
+    "payment.c2c_body": "ミャンマー・ベトナムでは Home Mart は代金を受け取りません。チャットし、受け渡し時に MMQR / VNQR で支払ってください。",
+    "payment.c2c_test_note": "受け渡しチェックアウトはテスト用です — プラットフォーム課金なし。",
+    "payment.stripe_test_note": "カード保存は Stripe テストモードのみ（pk_test_ / sk_test_）。"
 }

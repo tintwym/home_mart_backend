@@ -672,5 +672,20 @@
     "listing.category_general": "အထွေထွေ",
     "listing.trust_c2c_safety": "ရောင်းသူနှင့် ချတ်ပြီး အများပြည်သူနေရာတွင် ဘေးကင်းစွာ တွေ့ပါ",
     "listing.trust_inspect_before_pay": "ပေးချေမီ ပစ္စည်းကို စစ်ဆေးပါ",
-    "listing.edit_your_review": "သင့်သုံးသပ်ချက် ပြင်ရန်"
+    "listing.edit_your_review": "သင့်သုံးသပ်ချက် ပြင်ရန်",
+    "category.bookshelves": "စာအုပ်ထိုင်",
+    "category.coffee-tables": "ကော်ဖီစားပွဲ",
+    "category.dining-tables": "ညစာစားပွဲ",
+    "category.office-desks": "ရုံးစားပွဲ",
+    "category.outdoor-seating": "ပြင်ပထိုင်ခုံ",
+    "category.sofas-sectionals": "ဆိုဖာနှင့် အပိုင်းများ",
+    "checkout.mm_method_mmqr": "MMQR",
+    "checkout.mm_hint_mmqr": "MyanmarPay ဘဏ်/ပိုက်ဆံအိတ်အက်ပ (KBZ, Wave, AYA, CB…) ဖြင့် MMQR ကို စကန်ဖတ်ပါ။",
+    "checkout.mm_mmqr_title": "MMQR ငွေပေးချေမှု",
+    "checkout.mm_scan_mmqr": "ဘဏ်/ပိုက်ဆံအိတ်အက်ပ ဖွင့်ပြီး ဤ MMQR ကို စကန်ဖတ်ပြီး ပေးချေပါ။",
+    "checkout.mm_confirm_payment": ":amount အတည်ပြုပေးချေရန်",
+    "payment.c2c_heading": "ရောင်းသူကို တိုက်ရိုက်ပေးချေပါ (C2C)",
+    "payment.c2c_body": "မြန်မာနှင့် ဗီယက်နမ်တွင် Home Mart က ငွေမလက်ခံပါ။ ရောင်းသူကို မက်ဆေ့ချ်ပို့ပြီး တွေ့ဆုံချိန်တွင် MMQR / VNQR ဖြင့် ပေးချေပါ။",
+    "payment.c2c_test_note": "တွေ့ဆုံ checkout သည် စမ်းသပ်မှုသာ — ပလက်ဖောင်းမကောက်ပါ။",
+    "payment.stripe_test_note": "ကတ်သိမ်းခြင်းသည် Stripe TEST သာ (pk_test_ / sk_test_)။"
 }

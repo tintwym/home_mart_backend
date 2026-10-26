@@ -672,5 +672,15 @@
     "listing.category_general": "综合",
     "listing.trust_c2c_safety": "与卖家聊天，并在公共场所安全面交",
     "listing.trust_inspect_before_pay": "付款前请检查商品",
-    "listing.edit_your_review": "编辑您的评价"
+    "listing.edit_your_review": "编辑您的评价",
+    "category.bookshelves": "书架",
+    "category.coffee-tables": "咖啡桌",
+    "category.dining-tables": "餐桌",
+    "category.office-desks": "办公桌",
+    "category.outdoor-seating": "户外座椅",
+    "category.sofas-sectionals": "沙发与组合沙发",
+    "payment.c2c_heading": "直接向卖家付款（C2C）",
+    "payment.c2c_body": "在缅甸与越南，Home Mart 不代收款。请与卖家聊天，面交时通过 MMQR / VNQR 付款。",
+    "payment.c2c_test_note": "面交流程为测试模式 — 平台不收费。",
+    "payment.stripe_test_note": "银行卡仅使用 Stripe 测试模式（pk_test_ / sk_test_）。"
 }

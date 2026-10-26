@@ -672,5 +672,15 @@
     "listing.category_general": "Chung",
     "listing.trust_c2c_safety": "Chat với người bán và gặp an toàn nơi công cộng",
     "listing.trust_inspect_before_pay": "Kiểm tra hàng trước khi thanh toán",
-    "listing.edit_your_review": "Sửa đánh giá của bạn"
+    "listing.edit_your_review": "Sửa đánh giá của bạn",
+    "category.bookshelves": "Kệ sách",
+    "category.coffee-tables": "Bàn trà",
+    "category.dining-tables": "Bàn ăn",
+    "category.office-desks": "Bàn làm việc",
+    "category.outdoor-seating": "Ghế ngoài trời",
+    "category.sofas-sectionals": "Sofa & Ghế bành",
+    "payment.c2c_heading": "Thanh toán trực tiếp cho người bán (C2C)",
+    "payment.c2c_body": "Tại Myanmar và Việt Nam, Home Mart không thu hộ. Hãy nhắn người bán và trả qua MMQR / VNQR khi gặp mặt.",
+    "payment.c2c_test_note": "Luồng hẹn gặp đang ở chế độ thử nghiệm — không thu phí nền tảng.",
+    "payment.stripe_test_note": "Lưu thẻ chỉ dùng Stripe TEST (pk_test_ / sk_test_)."
 }

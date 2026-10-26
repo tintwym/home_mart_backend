@@ -18,7 +18,9 @@ services:
   - type: web
     name: homemart-api
     runtime: docker
-    plan: free
+    # Free spins down after ~15m idle (~1m cold start). Starter stays warm.
+    # Plan ID `starter` == `0.5c-512mb` (~$7/mo). See https://render.com/docs/free
+    plan: starter
     region: singapore
     dockerfilePath: ./Dockerfile
     dockerContext: .

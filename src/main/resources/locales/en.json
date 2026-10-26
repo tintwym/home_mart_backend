@@ -680,5 +680,16 @@
     "listing.category_general": "General",
     "listing.trust_c2c_safety": "Chat with the seller and meet safely in public",
     "listing.trust_inspect_before_pay": "Inspect the item before paying the seller",
-    "listing.edit_your_review": "Edit your review"
+    "listing.edit_your_review": "Edit your review",
+    "category.bookshelves": "Bookshelves",
+    "category.coffee-tables": "Coffee Tables",
+    "category.dining-tables": "Dining Tables",
+    "category.office-desks": "Office Desks",
+    "category.outdoor-seating": "Outdoor Seating",
+    "category.sofas-sectionals": "Sofas & Sectionals",
+    "checkout.mm_confirm_payment": "Confirm payment :amount",
+    "payment.c2c_heading": "Pay sellers directly (C2C)",
+    "payment.c2c_body": "In Myanmar and Vietnam, Home Mart does not collect payment. Message the seller and pay via MMQR / VNQR when you meet.",
+    "payment.c2c_test_note": "Meetup checkout is a test flow — no platform charges.",
+    "payment.stripe_test_note": "Card vault uses Stripe TEST mode only (pk_test_ / sk_test_)."
 }
