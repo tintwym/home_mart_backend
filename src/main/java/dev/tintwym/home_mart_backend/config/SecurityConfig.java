@@ -35,7 +35,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
         StripeProperties.class,
         CloudinaryProperties.class,
         MailAppProperties.class,
-        FirebaseProperties.class
+        FirebaseProperties.class,
+        GeminiProperties.class
 })
 public class SecurityConfig {
 
@@ -72,7 +73,8 @@ public class SecurityConfig {
                                 "/api/reset-password",
                                 "/api/two-factor-challenge",
                                 "/api/verify-email/**",
-                                "/api/passkeys/**")
+                                "/api/passkeys/**",
+                                "/api/assistant/chat")
                         .permitAll()
                         .requestMatchers(
                                 HttpMethod.GET,

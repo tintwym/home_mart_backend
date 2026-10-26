@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.util.List;
 
 public final class ApiRequests {
 
@@ -128,5 +129,15 @@ public final class ApiRequests {
     public record PasskeyAuthenticateRequest(
             @NotBlank String state,
             @NotNull JsonNode credential) {
+    }
+
+    public record AssistantHistoryTurn(
+            String role,
+            @Size(max = 2000) String text) {
+    }
+
+    public record AssistantChatRequest(
+            @NotBlank @Size(max = 2000) String message,
+            List<AssistantHistoryTurn> history) {
     }
 }
